@@ -52,6 +52,8 @@ const struct setting_parser_info xaps_setting_parser_info = {
     .defaults = &xaps_default_settings,
 
     .struct_size = sizeof(struct xaps_settings),
+    /* pool_offset1: Dovecot convention — 1 + offsetof pool field so the
+       settings framework can allocate string values into this pool. */
     .pool_offset1 = 1 + offsetof(struct xaps_settings, pool),
 };
 

@@ -103,11 +103,10 @@ void xaps_init(struct mail_user *muser, const char *http_path, pool_t pPool) {
     settings_free(xaps_set);
 
     if (xaps_global->http_client == NULL) {
-        struct event *event = event_create(muser->event);
-        if (http_client_init_auto(event, &xaps_global->http_client, &error) < 0) {
+        if (http_client_init_auto(muser->event, &xaps_global->http_client, &error) < 0) {
             i_error("xaps: Failed to initialize HTTP client: %s", error);
+            return;
         }
-        event_unref(&event);
     }
 }
 
