@@ -25,33 +25,37 @@
 
 #include <config.h>
 #include <lib.h>
-#include <hash.h>
 #include <http-client.h>
 #include <http-url.h>
-#include <json-parser.h>
+#include <json-generator.h>
 #include <str.h>
 #include <strescape.h>
-#include <iostream-ssl.h>
 #include <mail-storage-private.h>
 
 #include <push-notification-plugin.h>
 #include <push-notification-drivers.h>
 #include <push-notification-txn-msg.h>
 
+#include "xaps-settings.h"
 #include "xaps-utils.h"
-
-#define DEFAULT_TIMEOUT_MSECS 5000
-#define DEFAULT_RETRY_COUNT 6
 
 struct xaps_config *xaps_global;
 
 // get the real name for users who are actually an alias
 const char *get_real_mbox_user(struct mail_user *muser) {
     const char *username = muser->username;
-    if (xaps_global->user_lookup != NULL) {
-        const char *userdb_username = mail_user_plugin_getenv(muser, xaps_global->user_lookup);
-        if (userdb_username != NULL) {
-            username = userdb_username;
+    if (xaps_global->user_lookup != NULL && *xaps_global->user_lookup != '\0') {
+        const char *lookup_key = xaps_global->user_lookup;
+        size_t key_len = strlen(lookup_key);
+        if (muser->userdb_fields != NULL) {
+            for (unsigned int i = 0; muser->userdb_fields[i] != NULL; i++) {
+                const char *field = muser->userdb_fields[i];
+                if (strncmp(field, lookup_key, key_len) == 0 &&
+                    field[key_len] == '=') {
+                    username = field + key_len + 1;
+                    break;
+                }
+            }
         }
     }
     return username;
@@ -66,92 +70,44 @@ void str_free_i(string_t *str)
 
 
 
-static struct xaps_raw_config *xaps_parse_config(const char *p) {
-    const char **args, *key, *p2, *value;
-    struct xaps_raw_config *raw_config;
-
-    raw_config = t_new(struct xaps_raw_config, 1);
-    raw_config->raw_config = p;
-
-    hash_table_create(&raw_config->config, unsafe_data_stack_pool, 0,
-                      str_hash, strcmp);
-
-    if (p == NULL)
-        return raw_config;
-
-    args = t_strsplit_spaces(p, " ");
-
-    for (; *args != NULL; args++) {
-        p2 = strchr(*args, '=');
-        if (p2 != NULL) {
-            key = t_strdup_until(*args, p2);
-            value = t_strdup(p2 + 1);
-        } else {
-            key = *args;
-            value = "";
-        }
-        hash_table_update(raw_config->config, key, value);
-    }
-
-    return raw_config;
-}
-
 void xaps_init(struct mail_user *muser, const char *http_path, pool_t pPool) {
-    const char *error, *tmp;
-    struct http_client_settings http_set;
-    struct ssl_iostream_settings ssl_set;
-    const char *xaps_config_string;
-    struct xaps_raw_config *config;
-
-    xaps_config_string = mail_user_plugin_getenv(muser, "xaps_config");
-    i_assert(xaps_config_string != NULL);
+    const char *error;
+    const struct xaps_settings *xaps_set;
 
     if (xaps_global == NULL) {
         xaps_global = i_new(struct xaps_config, 1);
     }
 
-    config = xaps_parse_config(xaps_config_string);
+    if (xaps_settings_get(muser->event, &xaps_set, &error) < 0) {
+        i_error("xaps: Failed to get settings: %s", error);
+        return;
+    }
 
-    /* Valid config keys: url, user_lookup, max_retries, timeout_msecs */
-    tmp = hash_table_lookup(config->config, (const char *) "url");
-    i_assert(tmp != NULL);
-
-
-    int ret = http_url_parse(tmp, NULL, HTTP_URL_ALLOW_USERINFO_PART, pPool,
-                       &xaps_global->http_url, &error);
+    int ret = http_url_parse(xaps_set->xaps_url, NULL,
+                             HTTP_URL_ALLOW_USERINFO_PART, pPool,
+                             &xaps_global->http_url, &error);
+    if (ret != 0) {
+        i_error("xaps: Failed to parse xaps_url '%s': %s",
+                xaps_set->xaps_url, error);
+        settings_free(xaps_set);
+        return;
+    }
     xaps_global->http_url->path = http_path;
-    i_assert(ret == 0);
 
-    tmp = hash_table_lookup(config->config,(const char *) "user_lookup");
-    if (tmp != NULL) {
-        xaps_global->user_lookup = tmp;
+    if (*xaps_set->xaps_user_lookup != '\0') {
+        xaps_global->user_lookup = i_strdup(xaps_set->xaps_user_lookup);
+    } else {
+        xaps_global->user_lookup = NULL;
     }
 
-
-    tmp = hash_table_lookup(config->config, (const char *) "max_retries");
-    if ((tmp == NULL) ||
-        (str_to_uint(tmp, &xaps_global->http_max_retries) < 0)) {
-        xaps_global->http_max_retries = DEFAULT_RETRY_COUNT;
-    }
-    tmp = hash_table_lookup(config->config, (const char *) "timeout_msecs");
-    if ((tmp == NULL) ||
-        (str_to_uint(tmp, &xaps_global->http_timeout_msecs) < 0)) {
-        xaps_global->http_timeout_msecs = DEFAULT_TIMEOUT_MSECS;
-    }
+    settings_free(xaps_set);
 
     if (xaps_global->http_client == NULL) {
-        /* This is going to use the first user's settings, but these are
-           unlikely to change between users so it shouldn't matter much.
-         */
-        i_zero(&http_set);
-        http_set.debug = muser->mail_debug;
-        http_set.max_attempts = xaps_global->http_max_retries + 1;
-        http_set.request_timeout_msecs = xaps_global->http_timeout_msecs;
-        i_zero(&ssl_set);
-        mail_user_init_ssl_client_settings(muser, &ssl_set);
-        http_set.ssl = &ssl_set;
-
-        xaps_global->http_client = http_client_init(&http_set);
+        struct event *event = event_create(muser->event);
+        if (http_client_init_auto(event, &xaps_global->http_client, &error) < 0) {
+            i_error("xaps: Failed to initialize HTTP client: %s", error);
+        }
+        event_unref(&event);
     }
 }
 
