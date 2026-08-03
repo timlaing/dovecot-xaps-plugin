@@ -33,6 +33,8 @@
 #include <push-notification-event-messagenew.h>
 #include <push-notification-event-messageappend.h>
 #include <http-client.h>
+#include <http-url.h>
+#include <json-generator.h>
 #include <settings.h>
 
 #include "xaps-push-notification-plugin.h"

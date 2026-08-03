@@ -4,7 +4,7 @@ iOS Push Email for Dovecot
 What is this?
 -------------
 
-This project, together with the [dovecot-xaps-daemon](https://github.com/freswa/dovecot-xaps-daemon) project, will enable push email for iOS devices that talk to your Dovecot 2.3.x IMAP server. This is specially useful for people who are migrating away from running email services on OS X Server and want to keep the Push Email ability.
+This project, together with the [dovecot-xaps-daemon](https://github.com/freswa/dovecot-xaps-daemon) project, will enable push email for iOS devices that talk to your Dovecot 2.4.x IMAP server. This is specially useful for people who are migrating away from running email services on OS X Server and want to keep the Push Email ability.
 
 > Please note that it is not possible to use this project without legally owning a copy of OS X Server. You can purchase OS X Server on the [Mac App Store](https://itunes.apple.com/ca/app/os-x-server/id714547929?mt=12) or download it for free if you are a registered Mac or iOS developer.
 
@@ -35,11 +35,27 @@ You are going to need the following things to get this going:
 Installing the Dovecot plugins
 ------------------------------
 
-First install the following Ubuntu 20.04.2 packages, or equivalent for your operating system. This list is longer than it should be because there is not yet a binary distribution for this project.
+### Debian package
+
+Tagged releases include a Debian package built against Dovecot 2.4.2. Download
+the `.deb` file for the release and install it with APT so its Dovecot dependency
+is checked automatically:
 
 ```
-sudo apt-get build-dep dovecot-core
-sudo apt-get install git dovecot-dev cmake
+sudo apt install ./dovecot-xaps-plugin_<version>_<architecture>.deb
+```
+
+The package installs the plugin modules in `/usr/lib/dovecot/modules/` and the
+configuration as `/etc/dovecot/conf.d/95-xaps.conf`.
+
+### Build from source
+
+Ubuntu 26.04 LTS is the first Ubuntu LTS release that includes Dovecot 2.4.2.
+Install its build tools and Dovecot development package:
+
+```
+sudo apt-get update
+sudo apt-get install build-essential git dovecot-dev cmake
 ```
 
 Clone this project:
@@ -71,6 +87,22 @@ Restart Dovecot:
 ```
 sudo service dovecot restart
 ```
+
+Building a Debian package
+-------------------------
+
+After installing the build prerequisites above, CPack can create the same
+package produced by the release pipeline:
+
+```
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DXAPS_VERSION=1.0.0
+cmake --build build --parallel
+cpack --config build/CPackConfig.cmake -G DEB -B dist
+```
+
+CI builds every pull request and push on Ubuntu 26.04 LTS against its Dovecot
+2.4.2 packages. Pushing a stable version tag such as `v1.1.0` builds the Debian
+package and attaches it to the corresponding GitHub release.
 
 Debugging
 ---------

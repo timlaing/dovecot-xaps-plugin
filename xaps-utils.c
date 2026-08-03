@@ -28,6 +28,7 @@
 #include <http-client.h>
 #include <http-url.h>
 #include <json-generator.h>
+#include <settings.h>
 #include <str.h>
 #include <strescape.h>
 #include <mail-storage-private.h>

@@ -32,7 +32,7 @@
 
 #undef DEF
 #define DEF(type, name) \
-    SETTING_DEFINE_STRUCT_##type("xaps_"#name, name, struct xaps_settings)
+    SETTING_DEFINE_STRUCT_##type("xaps_"#name, xaps_##name, struct xaps_settings)
 
 static const struct setting_define xaps_setting_defines[] = {
     DEF(STR_NOVARS, url),
@@ -41,8 +41,8 @@ static const struct setting_define xaps_setting_defines[] = {
 };
 
 static const struct xaps_settings xaps_default_settings = {
-    .url         = "",
-    .user_lookup = "",
+    .xaps_url         = "",
+    .xaps_user_lookup = "",
 };
 
 const struct setting_parser_info xaps_setting_parser_info = {

@@ -28,6 +28,7 @@
 #include <str.h>
 #include <imap-common.h>
 #include <http-client.h>
+#include <http-url.h>
 #include <json-generator.h>
 #include <settings.h>
 
