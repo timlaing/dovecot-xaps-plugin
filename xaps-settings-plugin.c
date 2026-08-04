@@ -23,36 +23,20 @@
  * THE SOFTWARE.
  */
 
+#include <config.h>
 #include <lib.h>
-#include <http-client.h>
-#include <istream.h>
-#include <str.h>
-#include <push-notification-drivers.h>
-#include <push-notification-events.h>
 
-#ifndef DOVECOT_XAPS_PLUGIN_XAPS_H
-#define DOVECOT_XAPS_PLUGIN_XAPS_H
+#include "xaps-settings.h"
 
-#define XAPS_LOG_LABEL "XAPS Push Notification: "
+void xaps_settings_init(void);
 
-const char *get_real_mbox_user(struct mail_user *muser);
-
-/* This is data that is shared by all plugin users. */
-struct xaps_config {
-    struct http_url *http_url;
-    struct http_client *http_client;
-    const char *user_lookup;
-    const unsigned char *aps_topic;
+const struct setting_parser_info *xaps_settings_set_infos[] = {
+    &xaps_setting_parser_info,
+    NULL
 };
 
-extern struct xaps_config *xaps_global;
+void xaps_settings_init(void)
+{
+}
 
-void str_free_i(string_t *str);
-
-void xaps_init(struct mail_user *muser, const char *http_path, pool_t pPool);
-
-void push_notification_driver_xaps_deinit(struct push_notification_driver_user *duser ATTR_UNUSED);
-
-void push_notification_driver_xaps_cleanup(void);
-
-#endif
+const char *xaps_settings_version = DOVECOT_ABI_VERSION;

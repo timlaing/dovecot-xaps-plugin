@@ -32,9 +32,13 @@
 #include <push-notification-txn-msg.h>
 #include <push-notification-event-messagenew.h>
 #include <push-notification-event-messageappend.h>
-#include <http-client-private.h>
+#include <http-client.h>
+#include <http-url.h>
+#include <json-generator.h>
+#include <settings.h>
 
 #include "xaps-push-notification-plugin.h"
+#include "xaps-settings.h"
 #include "xaps-utils.h"
 
 const char *xaps_plugin_version = DOVECOT_ABI_VERSION;
@@ -63,7 +67,7 @@ static bool xaps_plugin_begin_txn(struct push_notification_driver_txn *dtxn) {
                             PUSH_NOTIFICATION_MESSAGE_HDR_TO |
                             PUSH_NOTIFICATION_MESSAGE_HDR_SUBJECT |
                             PUSH_NOTIFICATION_MESSAGE_BODY_SNIPPET;
-            push_notification_event_init(dtxn, "MessageNew", eventMessagenewConfig);
+            push_notification_event_init(dtxn, "MessageNew", eventMessagenewConfig, dtxn->ptxn->event);
         } else if (strcmp((*event)->name,"MessageAppend") == 0) {
             eventMessageappendConfig = p_new(dtxn->ptxn->pool, struct push_notification_event_messageappend_config, 1);
             // Take what you can, give nothing back
@@ -72,9 +76,9 @@ static bool xaps_plugin_begin_txn(struct push_notification_driver_txn *dtxn) {
                             PUSH_NOTIFICATION_MESSAGE_HDR_TO |
                             PUSH_NOTIFICATION_MESSAGE_HDR_SUBJECT |
                             PUSH_NOTIFICATION_MESSAGE_BODY_SNIPPET;
-            push_notification_event_init(dtxn, "MessageAppend", eventMessageappendConfig);
+            push_notification_event_init(dtxn, "MessageAppend", eventMessageappendConfig, dtxn->ptxn->event);
         } else {
-            push_notification_event_init(dtxn, (*event)->name, NULL);
+            push_notification_event_init(dtxn, (*event)->name, NULL, dtxn->ptxn->event);
         }
     }
     return TRUE;
@@ -161,9 +165,9 @@ const char *xaps_plugin_dependencies[] = { "push_notification", NULL };
 
 extern struct push_notification_driver push_notification_driver_xaps;
 
-int xaps_push_plugin_init(struct push_notification_driver_config *dconfig ATTR_UNUSED,
-                 struct mail_user *muser,
+int xaps_push_plugin_init(struct mail_user *muser ATTR_UNUSED,
                  pool_t pPool ATTR_UNUSED,
+                 const char *name ATTR_UNUSED,
                  void **pVoid ATTR_UNUSED,
                  const char **pString ATTR_UNUSED) {
 //    xaps_init(muser, "/notify", pPool);
@@ -192,6 +196,7 @@ struct push_notification_driver push_notification_driver_xaps = {
 // plugin init and deinit
 
 void xaps_push_notification_plugin_init(struct module *module ATTR_UNUSED) {
+    settings_info_register(&xaps_setting_parser_info);
     push_notification_driver_register(&push_notification_driver_xaps);
 }
 

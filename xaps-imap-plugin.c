@@ -27,9 +27,13 @@
 #include <lib.h>
 #include <str.h>
 #include <imap-common.h>
-#include <http-client-private.h>
+#include <http-client.h>
+#include <http-url.h>
+#include <json-generator.h>
+#include <settings.h>
 
 #include "xaps-imap-plugin.h"
+#include "xaps-settings.h"
 #include "xaps-utils.h"
 
 const char *xapplepushservice_plugin_version = DOVECOT_ABI_VERSION;
@@ -299,6 +303,7 @@ static void xaps_client_created(struct client **client) {
  */
 
 void xaps_imap_plugin_init(struct module *module) {
+    settings_info_register(&xaps_setting_parser_info);
     command_register("XAPPLEPUSHSERVICE", cmd_xapplepushservice, 0);
     xaps_imap_module = module;
     next_hook_client_created = imap_client_created_hook_set(xaps_client_created);
