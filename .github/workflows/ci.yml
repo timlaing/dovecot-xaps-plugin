@@ -45,4 +45,6 @@ jobs:
           sudo dpkg --install "$package"
           test -f /usr/lib/dovecot/modules/lib25_xaps_imap_plugin.so
           test -f /usr/lib/dovecot/modules/lib25_xaps_push_notification_plugin.so
+          test -f /usr/lib/dovecot/modules/settings/libxaps_settings.so
           test -f /etc/dovecot/conf.d/95-xaps.conf
+          sudo doveconf -n >/dev/null

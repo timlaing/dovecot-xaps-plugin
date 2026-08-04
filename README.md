@@ -45,7 +45,8 @@ is checked automatically:
 sudo apt install ./dovecot-xaps-plugin_<version>_<architecture>.deb
 ```
 
-The package installs the plugin modules in `/usr/lib/dovecot/modules/` and the
+The package installs the plugin modules in `/usr/lib/dovecot/modules/`, the
+Dovecot settings module in `/usr/lib/dovecot/modules/settings/`, and the
 configuration as `/etc/dovecot/conf.d/95-xaps.conf`.
 
 ### Build from source

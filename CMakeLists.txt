@@ -39,15 +39,18 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_library(lib25_xaps_push_notification_plugin MODULE xaps-utils.c xaps-settings.c xaps-push-notification-plugin.c)
 add_library(lib25_xaps_imap_plugin MODULE xaps-utils.c xaps-settings.c xaps-imap-plugin.c)
+add_library(xaps_settings MODULE xaps-settings.c xaps-settings-plugin.c)
 
 target_link_libraries(lib25_xaps_push_notification_plugin ${LIBDOVECOT} ${LIBDOVECOTSTORAGE})
 target_link_libraries(lib25_xaps_imap_plugin ${LIBDOVECOT} ${LIBDOVECOTSTORAGE})
+target_link_libraries(xaps_settings ${LIBDOVECOT})
 
 set_target_properties(lib25_xaps_push_notification_plugin PROPERTIES PREFIX "")
 set_target_properties(lib25_xaps_imap_plugin PROPERTIES PREFIX "")
 
 install(TARGETS lib25_xaps_push_notification_plugin DESTINATION /usr/lib/dovecot/modules)
 install(TARGETS lib25_xaps_imap_plugin DESTINATION /usr/lib/dovecot/modules)
+install(TARGETS xaps_settings DESTINATION /usr/lib/dovecot/modules/settings)
 install(FILES xaps.conf DESTINATION /etc/dovecot/conf.d RENAME 95-xaps.conf)
 
 set(CPACK_GENERATOR "DEB")
