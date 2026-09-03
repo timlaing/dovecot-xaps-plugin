@@ -52,20 +52,34 @@ install(TARGETS lib25_xaps_push_notification_plugin DESTINATION /usr/lib/dovecot
 install(TARGETS lib25_xaps_imap_plugin DESTINATION /usr/lib/dovecot/modules)
 install(TARGETS xaps_settings DESTINATION /usr/lib/dovecot/modules/settings)
 install(FILES xaps.conf DESTINATION /etc/dovecot/conf.d RENAME 95-xaps.conf)
+install(FILES LICENSE DESTINATION /usr/share/doc/dovecot-xaps-plugin RENAME copyright)
+install(FILES CHANGELOG.md DESTINATION /usr/share/doc/dovecot-xaps-plugin)
+
+configure_file(packaging/changelog.in changelog @ONLY)
+execute_process(
+    COMMAND gzip -9 -n -c "${CMAKE_CURRENT_BINARY_DIR}/changelog"
+    OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/changelog.gz"
+    COMMAND_ERROR_IS_FATAL ANY)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/changelog.gz"
+        DESTINATION /usr/share/doc/dovecot-xaps-plugin)
 
 set(CPACK_GENERATOR "DEB")
 set(CPACK_PACKAGE_NAME "dovecot-xaps-plugin")
 set(CPACK_PACKAGE_VENDOR "dovecot-xaps-plugin contributors")
 set(CPACK_PACKAGE_CONTACT "dovecot-xaps-plugin contributors <noreply@github.com>")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Apple push notification plugins for Dovecot")
-set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/freswa/dovecot-xaps-plugin")
+set(CPACK_DEBIAN_PACKAGE_DESCRIPTION
+    "Dovecot plugins implementing the XAPPLEPUSHSERVICE IMAP extension and
+ forwarding mail events to the companion xapsd APNS daemon.")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/timlaing/dovecot-xaps-plugin")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
 set(CPACK_SET_DESTDIR ON)
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "dovecot-core (>= 2.4.2)")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "dovecot-core (>= 2.4.2), libc6")
 set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
 set(CPACK_DEBIAN_PACKAGE_SECTION "mail")
+set(CPACK_STRIP_FILES TRUE)
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
     "${CMAKE_CURRENT_SOURCE_DIR}/packaging/conffiles")
 

@@ -1,23 +1,23 @@
-iOS Push Email for Dovecot
-==========================
+iOS Push Email plugin for Dovecot
+=================================
 
-What is this?
--------------
+[![CI](https://github.com/timlaing/dovecot-xaps-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/timlaing/dovecot-xaps-plugin/actions/workflows/ci.yml)
+[![Lint](https://github.com/timlaing/dovecot-xaps-plugin/actions/workflows/lint.yml/badge.svg)](https://github.com/timlaing/dovecot-xaps-plugin/actions/workflows/lint.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=timlaing_dovecot-xaps-plugin&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=timlaing_dovecot-xaps-plugin)
+[![Release](https://img.shields.io/github/v/release/timlaing/dovecot-xaps-plugin)](https://github.com/timlaing/dovecot-xaps-plugin/releases)
+[![License](https://img.shields.io/github/license/timlaing/dovecot-xaps-plugin)](LICENSE)
 
-This project, together with the [dovecot-xaps-daemon](https://github.com/freswa/dovecot-xaps-daemon) project, will enable push email for iOS devices that talk to your Dovecot 2.4.x IMAP server. This is specially useful for people who are migrating away from running email services on OS X Server and want to keep the Push Email ability.
+This project provides Dovecot 2.4.x plugins for the `XAPPLEPUSHSERVICE` IMAP extension and mail-event notifications.
+It works with [dovecot-xaps-daemon](https://github.com/timlaing/dovecot-xaps-daemon) to deliver native Apple Push
+Notification Service (APNS) notifications for iOS Mail.
 
-> Please note that it is not possible to use this project without legally owning a copy of OS X Server. You can purchase OS X Server on the [Mac App Store](https://itunes.apple.com/ca/app/os-x-server/id714547929?mt=12) or download it for free if you are a registered Mac or iOS developer.
+Both components are required:
 
-High Level Overview
--------------------
+1. This repository supplies the Dovecot IMAP and push-notification plugins.
+2. The daemon receives registrations and mail events from Dovecot and sends notifications to APNS.
 
-There are two parts to enabling iOS Push Email. You will need both parts for this to work.
-
-First you need to install the Dovecot plugins from this project. The Dovecot plugins add support for the `XAPPLEPUSHSERVICE` IMAP extension that will let iOS devices register themselves to receive native push notifications for new email arrival.
-
-(Apple did not document this feature, but it did publish the source code for all their Dovecot patches on the [Apple Open Source project site](http://www.opensource.apple.com/source/dovecot/dovecot-293/), which include this feature. So although I was not able to follow a specification, I was able to read their open source project and do a clean implementation with all original code.)
-
-Second, you need to install a daemon process, from the [dovecot-xaps-plugin](https://github.com/freswa/dovecot-xaps-daemon) project, that will be responsible for receiving new email notifications from the Dovecot Local Delivery Agent or from the Dovecot LMTP server and transforming those into native Apple Push Notifications.
+Apple did not publish an XAPPLEPUSHSERVICE specification. The implementation was derived from Apple's published
+Dovecot patches and requires APNS credentials that you are legally entitled to use.
 
 Installation
 ============
@@ -25,87 +25,94 @@ Installation
 Prerequisites
 -------------
 
-You are going to need the following things to get this going:
+* A working Dovecot 2.4.2 or newer installation.
+* Mail delivery through Dovecot LDA or LMTP.
+* A running [dovecot-xaps-daemon](https://github.com/timlaing/dovecot-xaps-daemon).
 
-* Some patience and willingness to experiment - Although I run this project in production, it is still a very early version and it may contain bugs.
-* Dovecot > 2.3.0 (which introduced some needed features to the http_client implementation of dovecot) 
+Debian package
+--------------
 
-> Note that you need to have an existing Dovecot setup working. Either with local system users or with virtual users. Also note that you need to be using the Dovecot Local Delivery Agent or the Dovecot LMTP server for this to work. The [Dovecot LDA](http://wiki2.dovecot.org/LDA) and the [LMTP server](http://wiki2.dovecot.org/LMTP) are described in detail on the Dovecot Wiki
+Tagged releases include a Debian package built against Dovecot 2.4.2. Download the package from this repository's
+[Releases](https://github.com/timlaing/dovecot-xaps-plugin/releases) page and install it with APT:
 
-Installing the Dovecot plugins
-------------------------------
-
-### Debian package
-
-Tagged releases include a Debian package built against Dovecot 2.4.2. Download
-the `.deb` file for the release and install it with APT so its Dovecot dependency
-is checked automatically:
-
-```
+```sh
 sudo apt install ./dovecot-xaps-plugin_<version>_<architecture>.deb
 ```
 
-The package installs the plugin modules in `/usr/lib/dovecot/modules/`, the
-Dovecot settings module in `/usr/lib/dovecot/modules/settings/`, and the
-configuration as `/etc/dovecot/conf.d/95-xaps.conf`.
+The package installs:
 
-### Build from source
+* Mail plugins in `/usr/lib/dovecot/modules/`.
+* The settings module in `/usr/lib/dovecot/modules/settings/`.
+* Dovecot configuration in `/etc/dovecot/conf.d/95-xaps.conf`.
 
-Ubuntu 26.04 LTS is the first Ubuntu LTS release that includes Dovecot 2.4.2.
-Install its build tools and Dovecot development package:
+The default daemon endpoint is the IPv6 loopback listener used by xapsd:
 
+```dovecot
+xaps_url = http://[::1]:11619
 ```
+
+Change `xaps_url` if the daemon listens at a different address. Validate and restart Dovecot after installation:
+
+```sh
+sudo doveconf -n
+sudo systemctl restart dovecot
+```
+
+Build from source
+-----------------
+
+On Ubuntu 26.04 LTS:
+
+```sh
 sudo apt-get update
 sudo apt-get install build-essential git dovecot-dev cmake
-```
-
-Clone this project:
-
-```
-git clone https://github.com/freswa/dovecot-xaps-plugin.git
+git clone https://github.com/timlaing/dovecot-xaps-plugin.git
 cd dovecot-xaps-plugin
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+cmake --build build --parallel
+sudo cmake --install build
+sudo doveconf -n
+sudo systemctl restart dovecot
 ```
 
-Compile and install the plugins. Note that the installation destination in the `Makefile` is hardcoded for Ubuntu, it expects the Dovecot modules to live at `/usr/lib/dovecot/modules/`. You can either modify the `Makefile` or copy the modules to the right place manually.
+The installation paths currently target Debian and Ubuntu's Dovecot module layout under `/usr/lib/dovecot/modules`.
 
-```
-mkdir build
-cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-sudo make install
-```
+Build a Debian package
+----------------------
 
-Install the configuration file. Also specific for Ubuntu, may be different for your operating system.
-
-```
-sudo cp xaps.conf /etc/dovecot/conf.d/95-xaps.conf
-```
-
-In the configuration file, change the `xaps_socket` option to point to the same location as you specified on the `xapsd` daemon arguments.
-
-Restart Dovecot:
-
-```
-sudo service dovecot restart
-```
-
-Building a Debian package
--------------------------
-
-After installing the build prerequisites above, CPack can create the same
-package produced by the release pipeline:
-
-```
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DXAPS_VERSION=1.0.0
+```sh
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/usr \
+  -DXAPS_VERSION=1.0.0
 cmake --build build --parallel
 cpack --config build/CPackConfig.cmake -G DEB -B dist
 ```
 
-CI builds every pull request and push on Ubuntu 26.04 LTS against its Dovecot
-2.4.2 packages. Pushing a stable version tag such as `v1.1.0` builds the Debian
+CI builds and validates the package on Ubuntu 26.04 LTS. Pushing a stable tag such as `v1.1.0` builds the Debian
 package and attaches it to the corresponding GitHub release.
 
-Debugging
----------
+Troubleshooting
+===============
 
-Put a tail on `/var/log/mail.log` and keep an eye on the output of the `xapsd` daemon. (See instructions in that project). If you see any errors or core dumps, please [file a bug](https://github.com/freswa/dovecot-xaps-plugin/issues/new).
+If Dovecot reports `connect(127.0.0.1:11619) failed: Connection refused` while xapsd is listening on `[::1]:11619`,
+ensure `xaps_url` uses `http://[::1]:11619`.
+
+Useful checks:
+
+```sh
+sudo doveconf -n
+sudo systemctl status dovecot xapsd
+sudo journalctl -u dovecot -u xapsd -n 100 --no-pager
+sudo ss -ltnp | grep 11619
+```
+
+Report plugin issues in this repository's [issue tracker](https://github.com/timlaing/dovecot-xaps-plugin/issues).
+
+Acknowledgements
+================
+
+This repository is a maintained fork of [freswa/dovecot-xaps-plugin](https://github.com/freswa/dovecot-xaps-plugin),
+maintained by Frederik Schwan, which is itself based on the original
+[st3fan/dovecot-xaps-plugin](https://github.com/st3fan/dovecot-xaps-plugin) by Stefan Arentz. Their design,
+implementation, maintenance, and the work of all contributors made this fork possible.

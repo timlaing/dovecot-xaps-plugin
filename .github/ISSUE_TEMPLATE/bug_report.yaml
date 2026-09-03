@@ -1,0 +1,74 @@
+name: Bug report
+description: Report a problem with the Dovecot XAPS plugin
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Remove credentials, tokens, email addresses, and other private data from all output.
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: Release version, Debian package version, or commit SHA
+      placeholder: "e.g. 1.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: dovecot-version
+    attributes:
+      label: Dovecot version
+      description: Output of `dovecot --version`
+      placeholder: "e.g. 2.4.2"
+    validations:
+      required: true
+
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating system
+      placeholder: "e.g. Ubuntu 26.04 amd64"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation method
+      options:
+        - Debian package
+        - Built from source
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What happened, and what did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant Dovecot configuration
+      description: Paste relevant output from `doveconf -n` after removing private data.
+      render: text
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste Dovecot log output after removing private data.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context

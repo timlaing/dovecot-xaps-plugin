@@ -1,0 +1,96 @@
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+
+categories:
+  - title: "🚀 Features"
+    semver-increment: "minor"
+    exclusive: true
+    when:
+      - conventional:
+          type: "feat"
+      - labels:
+          - "enhancement"
+
+  - title: "🐛 Bug Fixes"
+    exclusive: true
+    when:
+      - conventional:
+          type: "fix"
+      - labels:
+          - "bug"
+
+  - title: "🧰 Maintenance"
+    exclusive: true
+    when:
+      conventional:
+        type: "chore"
+
+  - title: "⬆️ Dependencies"
+    collapse-after: 0
+    exclusive: true
+    when:
+      labels:
+        - "dependencies"
+
+  - title: "📚 Documentation"
+    exclusive: true
+    when:
+      - conventional:
+          type: "docs"
+      - labels:
+          - "documentation"
+
+  - type: "pre-exclude"
+    when:
+      label: "skip-changelog"
+
+  - title: "🔧 Other Changes"
+    exclusive: true
+
+autolabeler:
+  - label: "documentation"
+    files:
+      - "*.md"
+      - "docs/**"
+    title:
+      - "/docs/i"
+  - label: "bug"
+    branch:
+      - '/fix\/.+/'
+    title:
+      - "/fix/i"
+  - label: "enhancement"
+    branch:
+      - '/feature\/.+/'
+    title:
+      - "/feat/i"
+  - label: "dependencies"
+    title:
+      - "/deps/i"
+      - "/bump/i"
+
+exclude-contributors:
+  - "dependabot[bot]"
+
+change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
+change-title-escapes: '\<*_&'
+no-changes-template: "* No notable changes in this release."
+sort-by: "title"
+sort-direction: "ascending"
+
+template: |
+  ## What's Changed
+
+  $CHANGES
+
+  ## 🆕 New Contributors
+
+  $NEW_CONTRIBUTORS
+
+  ## 👥 Contributors
+
+  $CONTRIBUTORS
+
+  **Change Log**: [CHANGELOG.md](https://github.com/$OWNER/$REPOSITORY/blob/v$RESOLVED_VERSION/CHANGELOG.md)
+
+  **Full Changelog**: [$PREVIOUS_TAG...v$RESOLVED_VERSION](https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION)
