@@ -56,20 +56,23 @@ install(FILES LICENSE DESTINATION /usr/share/doc/dovecot-xaps-plugin RENAME copy
 install(FILES CHANGELOG.md DESTINATION /usr/share/doc/dovecot-xaps-plugin)
 
 find_program(GZIP_EXECUTABLE gzip)
-if (NOT GZIP_EXECUTABLE)
-    message(FATAL_ERROR "gzip is required to build the Debian changelog")
-endif ()
 string(TIMESTAMP DEBIAN_CHANGELOG_DATE "%a, %d %b %Y %H:%M:%S +0000" UTC)
 configure_file(packaging/changelog.in changelog.Debian @ONLY)
-execute_process(
-    COMMAND "${GZIP_EXECUTABLE}" -9 -n -c "${CMAKE_CURRENT_BINARY_DIR}/changelog.Debian"
-    OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/changelog.Debian.gz"
-    RESULT_VARIABLE GZIP_RESULT)
-if (NOT GZIP_RESULT EQUAL 0)
-    message(FATAL_ERROR "Failed to compress the Debian changelog")
+if (GZIP_EXECUTABLE)
+    execute_process(
+        COMMAND "${GZIP_EXECUTABLE}" -9 -n -c "${CMAKE_CURRENT_BINARY_DIR}/changelog.Debian"
+        OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/changelog.Debian.gz"
+        RESULT_VARIABLE GZIP_RESULT)
+    if (NOT GZIP_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to compress the Debian changelog")
+    endif ()
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/changelog.Debian.gz"
+            DESTINATION /usr/share/doc/dovecot-xaps-plugin)
+else ()
+    message(STATUS "gzip not found; installing the Debian changelog uncompressed")
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/changelog.Debian"
+            DESTINATION /usr/share/doc/dovecot-xaps-plugin)
 endif ()
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/changelog.Debian.gz"
-        DESTINATION /usr/share/doc/dovecot-xaps-plugin)
 
 set(CPACK_GENERATOR "DEB")
 set(CPACK_PACKAGE_NAME "dovecot-xaps-plugin")
