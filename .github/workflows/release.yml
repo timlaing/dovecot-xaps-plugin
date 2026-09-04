@@ -110,12 +110,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            echo "Release Drafter did not create a draft for $GITHUB_REF_NAME" >&2
-            exit 1
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" \
+              dist/*.deb dist/SHA256SUMS dist/*.spdx.json --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --generate-notes \
+              dist/*.deb dist/SHA256SUMS dist/*.spdx.json
           fi
-          gh release upload "$GITHUB_REF_NAME" \
-            dist/*.deb dist/SHA256SUMS dist/*.spdx.json --clobber
           gh release edit "$GITHUB_REF_NAME" \
             --draft=false \
             --latest \
