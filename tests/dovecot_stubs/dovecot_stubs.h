@@ -105,12 +105,14 @@ typedef struct buffer {
 
 /* array iteration — matches Dovecot semantics: the array storage is cast to
    void* for the initial assignment (implicit void* -> typed-pointer), and the
-   end pointer is computed via char* byte arithmetic.  The loops never actually
-   execute in unit tests because the arrays are empty. */
+   end pointer is computed via char* byte arithmetic.  The terminating compare
+   is done on void* pointers so it never trips -Wcompare-distinct-pointer-types
+   under -Werror.  The loops never actually execute in unit tests because the
+   arrays are empty. */
 #define array_foreach(_arr, elem) \
     for ((elem) = (void *)(_arr)->arr; \
-         (elem) != (const char *)(const void *)(_arr)->arr + \
-             (size_t)(_arr)->count * sizeof(*(elem)); \
+         (void *)(elem) != (void *)((const char *)(const void *)(_arr)->arr + \
+             (size_t)(_arr)->count * sizeof(*(elem))); \
          (elem)++)
 
 #define array_is_created(_arr) ((_arr)->arr != NULL)
