@@ -55,7 +55,9 @@ class Gcov:
                         while len(lst) <= idx:
                             lst.append(False)
                         lst[idx] = lst[idx] or cov
-                    g.raw.append((None, None, line))
+                    # Record the source line so emit_gcov() can rewrite this
+                    # branch to reflect merged coverage from other binaries.
+                    g.raw.append((None, g.cur_line, line))
                     continue
                 m = LINE_RE.match(line)
                 if not m:

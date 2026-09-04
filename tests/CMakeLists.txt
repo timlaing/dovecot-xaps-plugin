@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-project(xaps_tests C)
+# Only initialize a standalone project when configured directly
+# (cmake -S tests); as a subdirectory of the main build the parent
+# project() already owns the build.
+if(NOT PROJECT_NAME)
+    project(xaps_tests C)
+endif()
 
 enable_testing()
 
@@ -34,5 +39,5 @@ foreach(test_src ${TEST_SOURCES})
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests"
     )
 
-    add_test(NAME ${test_name} COMMAND ${test_name})
+    add_test(NAME ${test_name} COMMAND $<TARGET_FILE:${test_name}>)
 endforeach()
