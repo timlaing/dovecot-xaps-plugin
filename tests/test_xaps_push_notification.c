@@ -59,10 +59,7 @@ static struct push_notification_driver_txn make_txn(const char *username) {
     dtxn.duser->context = (void*)0x11;
     /* ptxn is an anonymous struct pointer in the stub; allocate a matching
        chunk and fill the fields we use. */
-    dtxn.ptxn = (void*)i_new_impl(sizeof(dtxn.ptxn->muser) +
-                                  sizeof(dtxn.ptxn->mbox) +
-                                  sizeof(dtxn.ptxn->pool) +
-                                  sizeof(dtxn.ptxn->event));
+    dtxn.ptxn = (void*)i_new_impl(sizeof(*dtxn.ptxn));
     dtxn.ptxn->muser = make_user(username, NULL);
     dtxn.ptxn->mbox = i_new(struct mailbox, 1);
     dtxn.ptxn->mbox->name = "INBOX";

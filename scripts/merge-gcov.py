@@ -86,8 +86,7 @@ def merge_copies(src, dirs):
     # base = the copy that exercised the most lines
     base = max(gcovs, key=lambda g: sum(1 for c, _ in g.lines.values() if c))
     merged = Gcov()
-    merged.funcs = dict(base.funcs)
-    for g in gcovs[1:]:
+    for g in gcovs:
         for name, cnt in g.funcs.items():
             merged.funcs[name] = max(merged.funcs.get(name, 0), cnt)
     for g in gcovs:

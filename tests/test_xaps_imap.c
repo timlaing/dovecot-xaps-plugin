@@ -107,7 +107,7 @@ static void setup_valid_args(void) {
     ARG(2, IMAP_ARG_ATOM, "aps-account-id");
     ARG(3, IMAP_ARG_ATOM, "0715A26B-CA09-4730-A419-793000CA982E");
     ARG(4, IMAP_ARG_ATOM, "aps-device-token");
-    ARG(5, IMAP_ARG_ATOM, "2918390218931890821908309283098109381029309829018310983092892829");
+    ARG(5, IMAP_ARG_ATOM, "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF");
     ARG(6, IMAP_ARG_ATOM, "aps-subtopic");
     ARG(7, IMAP_ARG_ATOM, "com.apple.mobilemail");
     ARG(8, IMAP_ARG_ATOM, "mailboxes");
@@ -136,7 +136,7 @@ static int test_parse_valid(void) {
     else if (!attr.aps_account_id || strcmp(attr.aps_account_id,
              "0715A26B-CA09-4730-A419-793000CA982E") != 0) rc = 0;
     else if (!attr.aps_device_token || strcmp(attr.aps_device_token,
-             "2918390218931890821908309283098109381029309829018310983092892829") != 0) rc = 0;
+             "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF") != 0) rc = 0;
     else if (!attr.aps_subtopic || strcmp(attr.aps_subtopic,
              "com.apple.mobilemail") != 0) rc = 0;
     else if (!attr.dovecot_username || strcmp(attr.dovecot_username,

@@ -99,7 +99,10 @@ void xaps_init(struct mail_user *muser, const char *http_path, pool_t pPool ATTR
             return;
         }
     }
-    xaps_global->http_url->path = p_strdup(xaps_global->pool, http_path);
+    /* Callers pass string literals ("/notify", "/register"), so direct
+       assignment avoids both the transient-pool use-after-free and unbounded
+       growth of the alloc-only pool from per-call p_strdup(). */
+    xaps_global->http_url->path = http_path;
 
     if (xaps_global->user_lookup == NULL && *xaps_set->xaps_user_lookup != '\0') {
         xaps_global->user_lookup = p_strdup(xaps_global->pool,

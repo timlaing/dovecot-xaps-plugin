@@ -293,6 +293,10 @@ static const char *xaps_payload_str(pool_t dest_pool, struct istream *payload,
     ssize_t ret;
 
     *error_r = NULL;
+    if (payload == NULL) {
+        *error_r = "server returned no payload";
+        return NULL;
+    }
     str = str_new(dest_pool, 64);
     while ((ret = i_stream_read(payload)) > 0) {
         while (i_stream_read_data(payload, &data, &size, 0) > 0) {
