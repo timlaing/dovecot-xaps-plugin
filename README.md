@@ -83,13 +83,23 @@ Testing
 The test suite builds a standalone test binary for each plugin module using lightweight Dovecot stubs, so it does not
 require a running Dovecot installation.
 
-On Ubuntu 26.04 LTS:
+Run it in an Ubuntu 26.04 container on either architecture (x64 / arm64):
 
 ```sh
-sudo apt-get install build-essential cmake
-cmake -S tests -B build-test -DCMAKE_BUILD_TYPE=Release
-cmake --build build-test --parallel
-ctest --test-dir build-test --output-on-failure
+docker run --rm --platform linux/amd64 \
+  -v "$PWD":/src -w /src ubuntu:26.04 bash -c '
+  apt-get update && apt-get install --yes build-essential cmake
+  cmake -S tests -B build-test -DCMAKE_BUILD_TYPE=Release
+  cmake --build build-test --parallel
+  ctest --test-dir build-test --output-on-failure
+'
+```
+
+The same verification (plugin build, Debian package, lintian) runs on both x64 and
+arm64 in the `Test` workflow by switching the platform:
+
+```sh
+docker run --rm --platform linux/arm64 -v "$PWD":/src -w /src ubuntu:26.04 bash -c '...'
 ```
 
 Coverage build (used in CI):
