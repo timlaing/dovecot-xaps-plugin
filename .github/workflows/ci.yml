@@ -16,11 +16,11 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
 
-      - name: Install Dovecot 2.4.2 build dependencies
+      - name: Install Dovecot build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --yes build-essential cmake dovecot-core dovecot-dev lintian
-          dovecot --version | grep --extended-regexp '^2\.4\.2([[:space:]]|$)'
+          dpkg --compare-versions "$(dovecot --version | awk '{print $1}')" ge 2.4.2
 
       - name: Configure
         run: >-

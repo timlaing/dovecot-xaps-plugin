@@ -26,7 +26,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes build-essential cmake dovecot-core dovecot-dev
-          dovecot --version | grep --extended-regexp '^2\.4\.2([[:space:]]|$)'
+          dpkg --compare-versions "$(dovecot --version | awk '{print $1}')" ge 2.4.2
 
       - name: Generate compilation database
         run: >-

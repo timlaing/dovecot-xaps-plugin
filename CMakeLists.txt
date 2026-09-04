@@ -55,12 +55,20 @@ install(FILES xaps.conf DESTINATION /etc/dovecot/conf.d RENAME 95-xaps.conf)
 install(FILES LICENSE DESTINATION /usr/share/doc/dovecot-xaps-plugin RENAME copyright)
 install(FILES CHANGELOG.md DESTINATION /usr/share/doc/dovecot-xaps-plugin)
 
-configure_file(packaging/changelog.in changelog @ONLY)
+find_program(GZIP_EXECUTABLE gzip)
+if (NOT GZIP_EXECUTABLE)
+    message(FATAL_ERROR "gzip is required to build the Debian changelog")
+endif ()
+string(TIMESTAMP DEBIAN_CHANGELOG_DATE "%a, %d %b %Y %H:%M:%S +0000" UTC)
+configure_file(packaging/changelog.in changelog.Debian @ONLY)
 execute_process(
-    COMMAND gzip -9 -n -c "${CMAKE_CURRENT_BINARY_DIR}/changelog"
-    OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/changelog.gz"
-    COMMAND_ERROR_IS_FATAL ANY)
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/changelog.gz"
+    COMMAND "${GZIP_EXECUTABLE}" -9 -n -c "${CMAKE_CURRENT_BINARY_DIR}/changelog.Debian"
+    OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/changelog.Debian.gz"
+    RESULT_VARIABLE GZIP_RESULT)
+if (NOT GZIP_RESULT EQUAL 0)
+    message(FATAL_ERROR "Failed to compress the Debian changelog")
+endif ()
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/changelog.Debian.gz"
         DESTINATION /usr/share/doc/dovecot-xaps-plugin)
 
 set(CPACK_GENERATOR "DEB")
@@ -73,6 +81,7 @@ set(CPACK_DEBIAN_PACKAGE_DESCRIPTION
  forwarding mail events to the companion xapsd APNS daemon.")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/timlaing/dovecot-xaps-plugin")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_DEBIAN_PACKAGE_VERSION "${PROJECT_VERSION}-1")
 set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
 set(CPACK_SET_DESTDIR ON)
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
