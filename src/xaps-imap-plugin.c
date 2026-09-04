@@ -283,6 +283,10 @@ static bool cmd_xapplepushservice(struct client_command_context *cmd) {
  * HTTP callback function for /register call
  */
 
+/* aps-topic is a short certificate subject string; cap the response so a
+   misbehaving daemon cannot cause unbounded memory growth. */
+#define XAPS_MAX_TOPIC_SIZE 1024
+
 /* Copy the response payload into a NUL-terminated string allocated from
    dest_pool, so the result outlives the request/response streams. */
 static const char *xaps_payload_str(pool_t dest_pool, struct istream *payload,
@@ -300,6 +304,10 @@ static const char *xaps_payload_str(pool_t dest_pool, struct istream *payload,
     str = str_new(dest_pool, 64);
     while ((ret = i_stream_read(payload)) > 0) {
         while (i_stream_read_data(payload, &data, &size, 0) > 0) {
+            if (str_len(str) + size > XAPS_MAX_TOPIC_SIZE) {
+                *error_r = "aps-topic from server exceeds maximum size";
+                return NULL;
+            }
             str_append_data(str, data, size);
             i_stream_skip(payload, size);
         }
@@ -316,14 +324,20 @@ static const char *xaps_payload_str(pool_t dest_pool, struct istream *payload,
 }
 
 void xaps_register_callback(const struct http_response *response, void *context) {
+    if (xaps_global == NULL)
+        return;
+
     switch (response->status / 100) {
         case 2: {
             const char *topic, *error;
-            if (xaps_global == NULL || xaps_global->pool == NULL)
+            if (xaps_global->pool == NULL)
                 break;
             topic = xaps_payload_str(xaps_global->pool, response->payload, &error);
             if (topic == NULL) {
                 i_error("xaps: failed to read aps-topic from server: %s", error);
+                /* Clear any topic from an earlier registration so a
+                   failed re-registration cannot reuse a stale value. */
+                xaps_global->aps_topic = NULL;
             } else {
                 xaps_global->aps_topic = (const unsigned char *)topic;
             }
@@ -333,6 +347,7 @@ void xaps_register_callback(const struct http_response *response, void *context)
         default:
             // Error.
             i_error("Error when sending registration: %s", http_response_get_message(response));
+            xaps_global->aps_topic = NULL;
             break;
     }
 }

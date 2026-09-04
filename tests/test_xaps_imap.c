@@ -629,10 +629,11 @@ static int test_register_callback_2xx(void) {
     return 1;
 }
 
-/* 2xx but empty payload -> error logged and aps-topic is not set */
+/* 2xx but empty payload -> error logged and any stale aps-topic is cleared */
 static int test_register_callback_2xx_empty(void) {
     xaps_global = i_new(struct xaps_config, 1);
     xaps_global->pool = pool_alloconly_create("test", 64);
+    xaps_global->aps_topic = (const unsigned char *)"stale-topic";
     struct istream *stream = i_stream_create_from_data("", 0);
     struct http_response resp = {
         .status = 200,
@@ -653,6 +654,7 @@ static int test_register_callback_2xx_empty(void) {
 
 static int test_register_callback_3xx(void) {
     xaps_global = i_new(struct xaps_config, 1);
+    xaps_global->aps_topic = (const unsigned char *)"stale-topic";
     struct http_response resp = {
         .status = 302,
         .status_line = "Found",
@@ -660,7 +662,7 @@ static int test_register_callback_3xx(void) {
     test_reset_logs();
     xaps_register_callback(&resp, NULL);
     const char *err = test_get_last_error();
-    int ok = (err[0] != '\0');
+    int ok = (err[0] != '\0' && xaps_global->aps_topic == NULL);
     i_free(xaps_global);
     xaps_global = NULL;
     if (!ok) { fprintf(stderr, "  FAIL: expected error for 3xx\n"); return 0; }
@@ -669,6 +671,7 @@ static int test_register_callback_3xx(void) {
 
 static int test_register_callback_5xx(void) {
     xaps_global = i_new(struct xaps_config, 1);
+    xaps_global->aps_topic = (const unsigned char *)"stale-topic";
     struct http_response resp = {
         .status = 500,
         .status_line = "Internal Server Error",
@@ -676,10 +679,34 @@ static int test_register_callback_5xx(void) {
     test_reset_logs();
     xaps_register_callback(&resp, NULL);
     const char *err = test_get_last_error();
-    int ok = (err[0] != '\0');
+    int ok = (err[0] != '\0' && xaps_global->aps_topic == NULL);
     i_free(xaps_global);
     xaps_global = NULL;
     if (!ok) { fprintf(stderr, "  FAIL: expected error for 5xx\n"); return 0; }
+    return 1;
+}
+
+/* 2xx but oversized payload -> error logged and aps-topic is not set */
+static int test_register_callback_2xx_oversize(void) {
+    xaps_global = i_new(struct xaps_config, 1);
+    xaps_global->pool = pool_alloconly_create("test", 64);
+    char big[2048];
+    memset(big, 'x', sizeof(big));
+    struct istream *stream = i_stream_create_from_data(big, sizeof(big));
+    struct http_response resp = {
+        .status = 200,
+        .status_line = "OK",
+        .payload = stream,
+    };
+    test_reset_logs();
+    xaps_register_callback(&resp, NULL);
+    const char *err = test_get_last_error();
+    int ok = (err[0] != '\0' && xaps_global->aps_topic == NULL);
+    i_stream_unref(&stream);
+    pool_unref(&xaps_global->pool);
+    i_free(xaps_global);
+    xaps_global = NULL;
+    if (!ok) { fprintf(stderr, "  FAIL: expected oversize error path\n"); return 0; }
     return 1;
 }
 
@@ -829,6 +856,7 @@ int main(void) {
     RUN_TEST(test_register_callback_2xx_empty);
     RUN_TEST(test_register_callback_3xx);
     RUN_TEST(test_register_callback_5xx);
+    RUN_TEST(test_register_callback_2xx_oversize);
     RUN_TEST(test_client_created_with_next_hook);
     RUN_TEST(test_client_created_no_next_hook);
     RUN_TEST(test_client_created_next_hook);

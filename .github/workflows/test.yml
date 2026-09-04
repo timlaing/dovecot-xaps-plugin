@@ -34,7 +34,7 @@ jobs:
         env:
           PLATFORM: ${{ matrix.platform }}
         run: |
-          docker run --platform "$PLATFORM" \
+          docker run --rm --platform "$PLATFORM" \
             -v "$PWD":/src -w /src ubuntu:26.04 \
             /bin/bash -eux -c '
             apt-get update
