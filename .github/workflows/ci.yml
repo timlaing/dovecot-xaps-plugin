@@ -24,10 +24,9 @@ jobs:
           sudo dpkg --add-architecture ${{ matrix.arch }}
           sudo apt-get update
           sudo apt-get install --yes build-essential cmake lintian
-          sudo apt-get install --yes dovecot-dev:${{ matrix.arch }}
+          sudo apt-get install --yes dovecot-core:${{ matrix.arch }} dovecot-dev:${{ matrix.arch }}
           if [ "${{ matrix.arch }}" = "amd64" ]; then
-            sudo apt-get install --yes dovecot-core
-            dpkg --compare-versions "$(dovecot --version | awk '{print $1}')" ge 2.4.2
+            dpkg --compare-versions "$(dovecot --version | awk '{print $1}')" ge 2.4.0
           fi
 
       - name: Install cross-compiler
