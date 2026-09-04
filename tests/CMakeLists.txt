@@ -21,8 +21,9 @@ foreach(test_src ${TEST_SOURCES})
     get_filename_component(test_name ${test_src} NAME_WE)
     add_executable(${test_name} ${test_src} ${STUBS_SOURCE})
 
-    # Put stubs directory FIRST so our shadow headers are found instead of real Dovecot
-    target_include_directories(${test_name} PRIVATE
+    # Override include dirs so the stubs shadow real Dovecot headers even when
+    # tests are built as part of the main build (which adds DOVECOT_INCLUDE_DIR).
+    set_property(TARGET ${test_name} PROPERTY INCLUDE_DIRECTORIES
         ${STUBS_INCLUDE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/../src
     )
