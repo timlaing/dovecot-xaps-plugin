@@ -98,3 +98,13 @@ jobs:
             --draft=false \
             --latest \
             --title "$GITHUB_REF_NAME"
+
+      - name: Notify APT repository
+        env:
+          GH_TOKEN: ${{ secrets.APT_DISPATCH_TOKEN }}
+        shell: bash
+        run: |
+          gh api -X POST repos/timlaing/dovecot-xaps-apt/dispatches \
+            -f event_type=apt-release \
+            -f "client_payload[repo]=${{ github.repository }}" \
+            -f "client_payload[ref]=${{ github.ref_name }}"
