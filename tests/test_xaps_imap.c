@@ -326,6 +326,26 @@ static int test_parse_missing_mailboxes(void) {
     return 1;
 }
 
+/* Less than 10 arguments -> parse fails without reading out of bounds */
+static int test_parse_too_few_args(void) {
+    setup_valid_args();
+    base_args[6].type = IMAP_ARG_NIL; /* terminate after 3 key/value pairs */
+    base_args[6]._data.str = NULL;
+    test_set_imap_args(base_args, 12);
+    ensure_global();
+
+    struct client *c = make_client();
+    struct client_command_context *cmd = make_cmd(c);
+    struct xaps_attr attr;
+    memset(&attr, 0, sizeof(attr));
+
+    bool ok = parse_xapplepush(cmd, &attr);
+    i_free(cmd);
+    free_client(c);
+    if (ok) { fprintf(stderr, "  FAIL: expected too-few-args failure\n"); return 0; }
+    return 1;
+}
+
 /* ---- xaps_register tests ---- */
 
 static void free_http_state(void) { push_notification_driver_xaps_cleanup(); }
@@ -418,6 +438,30 @@ static int test_register_bad_mailbox_element(void) {
     return 1;
 }
 
+/* xaps not configured (no url/client) -> xaps_register returns -1 */
+static int test_register_unconfigured(void) {
+    xaps_global = i_new(struct xaps_config, 1);
+    struct xaps_attr attr;
+    memset(&attr, 0, sizeof(attr));
+    attr.aps_account_id = "acct-1";
+    attr.aps_device_token = "tok-1";
+    attr.aps_subtopic = "com.apple.mobilemail";
+    attr.dovecot_username = "user@example.com";
+    attr.mailboxes = NULL;
+
+    struct client *c = make_client();
+    struct client_command_context *cmd = make_cmd(c);
+
+    test_reset_logs();
+    int rc = xaps_register(cmd, &attr);
+
+    i_free(cmd);
+    free_client(c);
+    push_notification_driver_xaps_cleanup();
+    if (rc != -1) { fprintf(stderr, "  FAIL: expected -1, got %d\n", rc); return 0; }
+    return 1;
+}
+
 /* ---- register_client tests ---- */
 
 static int test_register_client_success(void) {
@@ -463,6 +507,32 @@ static int test_register_client_reg_failure(void) {
     struct client_command_context *cmd = make_cmd(c);
 
     bool ok = register_client(cmd, &attr);
+
+    i_free(cmd);
+    free_client(c);
+    free_http_state();
+    if (ok) { fprintf(stderr, "  FAIL: expected register_client failure\n"); return 0; }
+    return 1;
+}
+
+/* server returns an error status -> no aps-topic -> register_client fails */
+static int test_register_client_no_topic(void) {
+    init_global_url();
+    test_set_wait_status(500);
+    struct xaps_attr attr;
+    memset(&attr, 0, sizeof(attr));
+    attr.aps_version = "2";
+    attr.aps_account_id = "acct-1";
+    attr.aps_device_token = "tok-1";
+    attr.aps_subtopic = "com.apple.mobilemail";
+    attr.dovecot_username = "user@example.com";
+    attr.mailboxes = NULL;
+
+    struct client *c = make_client();
+    struct client_command_context *cmd = make_cmd(c);
+
+    bool ok = register_client(cmd, &attr);
+    test_set_wait_status(200);
 
     i_free(cmd);
     free_client(c);
@@ -534,6 +604,7 @@ static int test_cmd_register_failure(void) {
 
 static int test_register_callback_2xx(void) {
     xaps_global = i_new(struct xaps_config, 1);
+    xaps_global->pool = pool_alloconly_create("test", 64);
     const char *topic_data = "com.apple.mobilemail-certificate-topic-data";
     struct istream *stream = i_stream_create_from_data(topic_data, strlen(topic_data));
     struct http_response resp = {
@@ -545,10 +616,38 @@ static int test_register_callback_2xx(void) {
     xaps_register_callback(&resp, NULL);
     const char *err = test_get_last_error();
     int ok = (err[0] == '\0');
+    if (ok && (xaps_global->aps_topic == NULL ||
+               strcmp((const char *)xaps_global->aps_topic, topic_data) != 0)) {
+        fprintf(stderr, "  FAIL: aps-topic not stored correctly\n");
+        ok = 0;
+    }
     i_stream_unref(&stream);
+    pool_unref(&xaps_global->pool);
     i_free(xaps_global);
     xaps_global = NULL;
     if (!ok) { fprintf(stderr, "  FAIL: unexpected error: %s\n", err); return 0; }
+    return 1;
+}
+
+/* 2xx but empty payload -> error logged and aps-topic is not set */
+static int test_register_callback_2xx_empty(void) {
+    xaps_global = i_new(struct xaps_config, 1);
+    xaps_global->pool = pool_alloconly_create("test", 64);
+    struct istream *stream = i_stream_create_from_data("", 0);
+    struct http_response resp = {
+        .status = 200,
+        .status_line = "OK",
+        .payload = stream,
+    };
+    test_reset_logs();
+    xaps_register_callback(&resp, NULL);
+    const char *err = test_get_last_error();
+    int ok = (err[0] != '\0' && xaps_global->aps_topic == NULL);
+    i_stream_unref(&stream);
+    pool_unref(&xaps_global->pool);
+    i_free(xaps_global);
+    xaps_global = NULL;
+    if (!ok) { fprintf(stderr, "  FAIL: expected empty-payload error path\n"); return 0; }
     return 1;
 }
 
@@ -715,15 +814,19 @@ int main(void) {
     RUN_TEST(test_parse_empty_device_token);
     RUN_TEST(test_parse_empty_subtopic);
     RUN_TEST(test_parse_missing_mailboxes);
+    RUN_TEST(test_parse_too_few_args);
     RUN_TEST(test_register_with_mailboxes);
     RUN_TEST(test_register_no_mailboxes_default_inbox);
     RUN_TEST(test_register_bad_mailbox_element);
+    RUN_TEST(test_register_unconfigured);
     RUN_TEST(test_register_client_success);
     RUN_TEST(test_register_client_reg_failure);
+    RUN_TEST(test_register_client_no_topic);
     RUN_TEST(test_cmd_success);
     RUN_TEST(test_cmd_parse_failure);
     RUN_TEST(test_cmd_register_failure);
     RUN_TEST(test_register_callback_2xx);
+    RUN_TEST(test_register_callback_2xx_empty);
     RUN_TEST(test_register_callback_3xx);
     RUN_TEST(test_register_callback_5xx);
     RUN_TEST(test_client_created_with_next_hook);

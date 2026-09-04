@@ -89,7 +89,7 @@ void str_append(string_t *str, const char *cstr) {
     str->str[str->used] = '\0';
 }
 
-void str_append_len(string_t *str, const char *data, size_t len) {
+void str_append_len(string_t *str, const void *data, size_t len) {
     str_grow(str, len);
     memcpy(str->str + str->used, data, len);
     str->used += len;
@@ -162,6 +162,20 @@ int i_stream_read_data(struct istream *stream, const unsigned char **data_r,
     return (int)*size_r;
 }
 
+ssize_t i_stream_read(struct istream *stream) {
+    if (stream->skip >= stream->buffer_size) return -1;  /* EOF */
+    return (ssize_t)(stream->buffer_size - stream->skip);
+}
+
+void i_stream_skip(struct istream *stream, size_t count) {
+    if (stream->skip + count <= stream->buffer_size)
+        stream->skip += count;
+}
+
+const char *i_stream_get_error(const struct istream *stream) {
+    return stream->stream_errno != 0 ? "mock stream error" : "";
+}
+
 /* ---- http_url ---- */
 static bool test_http_url_parse_fail;
 
@@ -214,6 +228,9 @@ int http_client_init_auto(struct event *event ATTR_UNUSED,
 static http_client_request_callback_t saved_callback;
 static void *saved_callback_ctx;
 static char last_payload[4096] = "";
+static unsigned int test_wait_status = 200;
+
+void test_set_wait_status(unsigned int status) { test_wait_status = status; }
 
 /* Expose the most recent HTTP request payload (as text) for assertions. */
 static void test_capture_payload(const unsigned char *data, size_t len) {
@@ -262,7 +279,7 @@ void http_client_wait(struct http_client *client ATTR_UNUSED) {
         struct istream *payload =
             i_stream_create_from_data(topic, sizeof(topic) - 1);
         struct http_response resp = {
-            .status = 200,
+            .status = test_wait_status,
             .status_line = "OK",
             .payload = payload,
         };

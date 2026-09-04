@@ -71,12 +71,13 @@ void str_free_i(string_t *str)
 
 
 
-void xaps_init(struct mail_user *muser, const char *http_path, pool_t pPool) {
+void xaps_init(struct mail_user *muser, const char *http_path, pool_t pPool ATTR_UNUSED) {
     const char *error;
     const struct xaps_settings *xaps_set;
 
     if (xaps_global == NULL) {
         xaps_global = i_new(struct xaps_config, 1);
+        xaps_global->pool = pool_alloconly_create("xaps config", 1024);
     }
 
     if (xaps_settings_get(muser->event, &xaps_set, &error) < 0) {
@@ -84,21 +85,25 @@ void xaps_init(struct mail_user *muser, const char *http_path, pool_t pPool) {
         return;
     }
 
-    int ret = http_url_parse(xaps_set->xaps_url, NULL,
-                             HTTP_URL_ALLOW_USERINFO_PART, pPool,
-                             &xaps_global->http_url, &error);
-    if (ret != 0) {
-        i_error("xaps: Failed to parse xaps_url '%s': %s",
-                xaps_set->xaps_url, error);
-        settings_free(xaps_set);
-        return;
+    /* Keep the parsed URL in our own pool so it outlives the transient
+       transaction/command pool the caller provided. */
+    if (xaps_global->http_url == NULL) {
+        int ret = http_url_parse(xaps_set->xaps_url, NULL,
+                                 HTTP_URL_ALLOW_USERINFO_PART,
+                                 xaps_global->pool,
+                                 &xaps_global->http_url, &error);
+        if (ret != 0) {
+            i_error("xaps: Failed to parse xaps_url '%s': %s",
+                    xaps_set->xaps_url, error);
+            settings_free(xaps_set);
+            return;
+        }
     }
-    xaps_global->http_url->path = http_path;
+    xaps_global->http_url->path = p_strdup(xaps_global->pool, http_path);
 
-    if (*xaps_set->xaps_user_lookup != '\0') {
-        xaps_global->user_lookup = i_strdup(xaps_set->xaps_user_lookup);
-    } else {
-        xaps_global->user_lookup = NULL;
+    if (xaps_global->user_lookup == NULL && *xaps_set->xaps_user_lookup != '\0') {
+        xaps_global->user_lookup = p_strdup(xaps_global->pool,
+                                            xaps_set->xaps_user_lookup);
     }
 
     settings_free(xaps_set);
@@ -123,6 +128,9 @@ void push_notification_driver_xaps_cleanup(void)
     if (xaps_global != NULL) {
         if (xaps_global->http_client != NULL) {
             http_client_deinit(&xaps_global->http_client);
+        }
+        if (xaps_global->pool != NULL) {
+            pool_unref(&xaps_global->pool);
         }
         i_free_and_null(xaps_global);
     }

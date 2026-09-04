@@ -22,3 +22,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Changed the default xapsd endpoint to the IPv6 loopback address `[::1]:11619`.
 - Updated package metadata and documentation to reference the maintained `timlaing` repositories.
 - Connected tagged releases to the categorized draft produced by Release Drafter.
+
+### Fixed
+
+- Kept the parsed `xaps_url` in a plugin-owned pool so it outlives the transient transaction/command pool (use-after-free fix).
+- Copied the `aps-topic` returned by the daemon into the plugin pool instead of pointing into the response stream buffer.
+- Bounded `XAPPLEPUSHSERVICE` argument parsing so fewer than ten client arguments cannot cause out-of-bounds reads.
+- Stopped logging device tokens and account IDs in the registration debug message.
+- Replaced assertions with graceful error handling so a missing `xaps_url` no longer aborts Dovecot.
+- Fixed a `string_t` leak on the registration error path.

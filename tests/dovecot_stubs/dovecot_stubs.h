@@ -74,7 +74,10 @@ typedef struct _string_t {
 
 string_t *str_new(pool_t pool, size_t initial_size);
 void str_append(string_t *str, const char *cstr);
-void str_append_len(string_t *str, const char *data, size_t len);
+void str_append_len(string_t *str, const void *data, size_t len);
+static inline void str_append_data(string_t *str, const void *data, size_t len) {
+    str_append_len(str, data, len);
+}
 void str_printfa(string_t *str, const char *fmt, ...) ATTR_PRINTF(2, 3);
 const char *str_c(const string_t *str);
 size_t str_len(const string_t *str);
@@ -132,13 +135,17 @@ struct istream {
     size_t buffer_size;
     size_t skip;
     int refcount;
+    int stream_errno;
 };
 
 void i_stream_ref(struct istream *stream);
 void i_stream_unref(struct istream **stream);
 struct istream *i_stream_create_from_data(const void *data, size_t size);
+ssize_t i_stream_read(struct istream *stream);
+void i_stream_skip(struct istream *stream, size_t count);
 int i_stream_read_data(struct istream *stream, const unsigned char **data_r,
                        size_t *size_r, size_t threshold);
+const char *i_stream_get_error(const struct istream *stream);
 #define i_stream_add_destroy_callback(stream, callback, context)
 
 /* ---- ostream (opaque) ---- */
@@ -416,6 +423,7 @@ void test_set_http_url_parse_fail(bool fail);
 void test_set_http_client_init_fail(bool fail);
 void test_set_imap_args(const struct imap_arg *args, unsigned int count);
 void test_set_read_args_fail(bool fail);
+void test_set_wait_status(unsigned int status);
 const char *test_get_last_payload(void);
 void test_set_push_events(const struct push_notification_event **events,
                           unsigned int count);

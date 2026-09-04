@@ -73,11 +73,24 @@ static bool parse_xapplepush(struct client_command_context *cmd, struct xaps_att
 
     const struct imap_arg *args;
     const char *arg_key, *arg_val;
+    unsigned int nargs = 0;
 
     i_assert(xaps_attr != NULL);
     xaps_attr->dovecot_username = get_real_mbox_user(cmd->client->user);
 
     if (!client_read_args(cmd, 0, 0, &args)) {
+        client_send_command_error(cmd, "Invalid arguments.");
+        return FALSE;
+    }
+
+    /* We expect exactly five key/value pairs (10 args). Count the actual
+       arguments so we never read past the EOL sentinel below. */
+    while (!IMAP_ARG_IS_EOL(&args[nargs])) {
+        nargs++;
+        if (nargs >= 10)
+            break;
+    }
+    if (nargs < 10) {
         client_send_command_error(cmd, "Invalid arguments.");
         return FALSE;
     }
@@ -155,8 +168,11 @@ int xaps_register(struct client_command_context *cmd, struct xaps_attr *xaps_att
     struct istream *payload;
     string_t *str;
 
-    i_assert(xaps_global != NULL);
-    i_assert(xaps_global->http_client != NULL);
+    if (xaps_global == NULL || xaps_global->http_url == NULL ||
+        xaps_global->http_client == NULL) {
+        i_error("xaps: cannot register: xaps not configured (missing xaps_url?)");
+        return -1;
+    }
 
     http_req = http_client_request_url(
             xaps_global->http_client, "POST", xaps_global->http_url,
@@ -182,6 +198,7 @@ int xaps_register(struct client_command_context *cmd, struct xaps_attr *xaps_att
         for (int i = 0; !IMAP_ARG_IS_EOL(&xaps_attr->mailboxes[i]); i++) {
             const char *mailbox;
             if (!imap_arg_get_astring(&(xaps_attr->mailboxes[i]), &mailbox)) {
+                str_free(&str);
                 return -1;
             }
             if (!first) {
@@ -196,7 +213,8 @@ int xaps_register(struct client_command_context *cmd, struct xaps_attr *xaps_att
     }
     str_append(str, "}");
 
-    i_debug("Sending registration: %s", str_c(str));
+    /* Do not log device tokens or account IDs, only the account owner. */
+    i_debug("Sending registration for user: %s", xaps_attr->dovecot_username);
 
     payload = i_stream_create_from_data(str_data(str), str_len(str));
     i_stream_add_destroy_callback(payload, str_free_i, str);
@@ -226,6 +244,11 @@ static bool register_client(struct client_command_context *cmd, struct xaps_attr
      * aps-topic into the xaps_global struct.
      */
     http_client_wait(xaps_global->http_client);
+
+    if (xaps_global->aps_topic == NULL || xaps_global->aps_topic[0] == '\0') {
+        client_send_command_error(cmd, "No aps-topic returned by server.");
+        return FALSE;
+    }
 
     /*
      * Return success. We assume that aps_version and aps_topic do not
@@ -259,20 +282,53 @@ static bool cmd_xapplepushservice(struct client_command_context *cmd) {
 /**
  * HTTP callback function for /register call
  */
-void xaps_register_callback(const struct http_response *response, void *context) {
-    size_t size;
 
+/* Copy the response payload into a NUL-terminated string allocated from
+   dest_pool, so the result outlives the request/response streams. */
+static const char *xaps_payload_str(pool_t dest_pool, struct istream *payload,
+                                    const char **error_r) {
+    string_t *str;
+    const unsigned char *data;
+    size_t size;
+    ssize_t ret;
+
+    *error_r = NULL;
+    str = str_new(dest_pool, 64);
+    while ((ret = i_stream_read(payload)) > 0) {
+        while (i_stream_read_data(payload, &data, &size, 0) > 0) {
+            str_append_data(str, data, size);
+            i_stream_skip(payload, size);
+        }
+    }
+    if (payload->stream_errno != 0) {
+        *error_r = i_stream_get_error(payload);
+        return NULL;
+    }
+    if (str_len(str) == 0) {
+        *error_r = "server returned an empty response";
+        return NULL;
+    }
+    return str_c(str);
+}
+
+void xaps_register_callback(const struct http_response *response, void *context) {
     switch (response->status / 100) {
-        case 2:
-            // Success.
-            i_debug("Notification sent successfully: %s", http_response_get_message(response));
-            i_stream_read_data(response->payload, &xaps_global->aps_topic, &size, 128);
-            i_assert(size > 31);
+        case 2: {
+            const char *topic, *error;
+            if (xaps_global == NULL || xaps_global->pool == NULL)
+                break;
+            topic = xaps_payload_str(xaps_global->pool, response->payload, &error);
+            if (topic == NULL) {
+                i_error("xaps: failed to read aps-topic from server: %s", error);
+            } else {
+                xaps_global->aps_topic = (const unsigned char *)topic;
+            }
             break;
+        }
 
         default:
             // Error.
-            i_error("Error when sending notification: %s", http_response_get_message(response));
+            i_error("Error when sending registration: %s", http_response_get_message(response));
             break;
     }
 }

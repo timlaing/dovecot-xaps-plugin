@@ -295,6 +295,29 @@ static int test_notify_with_eventdata(void) {
     return 1;
 }
 
+/* notify with an unconfigured xaps (settings fail) -> skips without crashing */
+static int test_notify_unconfigured(void) {
+    xaps_global = NULL;
+    test_set_settings_get_fail(TRUE);
+
+    struct push_notification_driver_txn dtxn = make_txn("noone@example.com");
+    struct push_notification_txn_msg msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.mailbox = "INBOX";
+
+    test_reset_logs();
+    xaps_notify(&dtxn, &msg);
+
+    test_set_settings_get_fail(FALSE);
+    const char *err = test_get_last_error();
+    int ok = (err[0] != '\0' && test_get_last_payload()[0] == '\0');
+
+    free_txn(&dtxn);
+    push_notification_driver_xaps_cleanup();
+    if (!ok) { fprintf(stderr, "  FAIL: expected notified skip (no payload)\n"); return 0; }
+    return 1;
+}
+
 /* ---- lifecycle tests ---- */
 
 static int test_plugin_init(void) {
@@ -398,6 +421,7 @@ int main(void) {
     RUN_TEST(test_begin_txn_with_events);
     RUN_TEST(test_notify_no_eventdata);
     RUN_TEST(test_notify_with_eventdata);
+    RUN_TEST(test_notify_unconfigured);
     RUN_TEST(test_plugin_init);
     RUN_TEST(test_plugin_deinit);
     RUN_TEST(test_plugin_cleanup);
