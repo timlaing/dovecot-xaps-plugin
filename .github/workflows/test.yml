@@ -48,7 +48,7 @@ jobs:
               -DXAPS_VERSION=0.0.0
             cmake --build build --parallel
             cpack --config build/CPackConfig.cmake -G DEB -B dist
-            package=$(find dist -maxdepth 1 -name *.deb -print -quit)
+            package=$(find dist -maxdepth 1 -name '*.deb' -print -quit)
             test -n "$package"
             lintian --fail-on error "$package"
             dpkg-deb --contents "$package" | grep -q lib25_xaps_imap_plugin.so

@@ -118,7 +118,10 @@ def emit_gcov(merged, out_dir, src):
                 blst = merged.branches.get(lineno, [])
                 idx = int(m.group(1))
                 if idx < len(blst) and blst[idx]:
-                    text = re.sub(r"taken \d+", "taken 1", text)
+                    # Merged run covered this branch: mark it taken even if
+                    # the base run had "never executed".
+                    text = re.sub(r"taken \d+|never executed", "taken 1",
+                                  text, count=1)
                 out.append(text)
                 continue
             if FUNC_RE.match(text) or text.startswith("call"):

@@ -83,14 +83,12 @@ static bool parse_xapplepush(struct client_command_context *cmd, struct xaps_att
         return FALSE;
     }
 
-    /* We expect exactly five key/value pairs (10 args). Count the actual
-       arguments so we never read past the EOL sentinel below. */
-    while (!IMAP_ARG_IS_EOL(&args[nargs])) {
+    /* We expect exactly five key/value pairs (10 args). Count until the
+       EOL sentinel so we never read past it. */
+    while (!IMAP_ARG_IS_EOL(&args[nargs]))
         nargs++;
-        if (nargs >= 10)
-            break;
-    }
-    if (nargs < 10) {
+
+    if (nargs != 10) {
         client_send_command_error(cmd, "Invalid arguments.");
         return FALSE;
     }
@@ -330,8 +328,13 @@ void xaps_register_callback(const struct http_response *response, void *context)
     switch (response->status / 100) {
         case 2: {
             const char *topic, *error;
-            if (xaps_global->pool == NULL)
+            if (xaps_global->pool == NULL) {
+                i_error("xaps: no config pool; cannot persist aps-topic");
+                /* Fail closed so a partially-initialized config cannot
+                   reuse a stale topic. */
+                xaps_global->aps_topic = NULL;
                 break;
+            }
             topic = xaps_payload_str(xaps_global->pool, response->payload, &error);
             if (topic == NULL) {
                 i_error("xaps: failed to read aps-topic from server: %s", error);

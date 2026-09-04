@@ -77,6 +77,10 @@ void xaps_init(struct mail_user *muser, const char *http_path, pool_t pPool ATTR
 
     if (xaps_global == NULL) {
         xaps_global = i_new(struct xaps_config, 1);
+    }
+    if (xaps_global->pool == NULL) {
+        /* Lazily allocate so a partially-initialized global still has a
+           valid pool (http_url_parse() requires one). */
         xaps_global->pool = pool_alloconly_create("xaps config", 1024);
     }
 
