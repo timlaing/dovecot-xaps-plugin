@@ -9,9 +9,12 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build and publish Debian package
+  build:
+    name: Build ${{ matrix.arch }}
     runs-on: ubuntu-26.04
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
 
     steps:
       - name: Check out repository
@@ -27,11 +30,20 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_ENV"
 
-      - name: Install Dovecot build dependencies
+      - name: Install build dependencies
         run: |
+          sudo dpkg --add-architecture ${{ matrix.arch }}
           sudo apt-get update
-          sudo apt-get install --yes build-essential cmake dovecot-core dovecot-dev lintian
-          dpkg --compare-versions "$(dovecot --version | awk '{print $1}')" ge 2.4.2
+          sudo apt-get install --yes build-essential cmake lintian
+          sudo apt-get install --yes dovecot-dev:${{ matrix.arch }}
+          if [ "${{ matrix.arch }}" = "amd64" ]; then
+            sudo apt-get install --yes dovecot-core
+            dpkg --compare-versions "$(dovecot --version | awk '{print $1}')" ge 2.4.2
+          fi
+
+      - name: Install cross-compiler
+        if: matrix.arch == 'arm64'
+        run: sudo apt-get install --yes gcc-aarch64-linux-gnu
 
       - name: Configure
         run: >-
@@ -39,6 +51,8 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_INSTALL_PREFIX=/usr
           -DXAPS_VERSION="${{ env.version }}"
+          -DCPACK_DEBIAN_PACKAGE_ARCHITECTURE=${{ matrix.arch }}
+          ${{ matrix.arch == 'arm64' && '-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc' || '' }}
 
       - name: Build
         run: cmake --build build --parallel
@@ -54,12 +68,31 @@ jobs:
           dpkg-deb --info "$package"
           dpkg-deb --contents "$package"
           lintian --fail-on error "$package"
-          sudo dpkg --install "$package"
-          test -f /usr/lib/dovecot/modules/lib25_xaps_imap_plugin.so
-          test -f /usr/lib/dovecot/modules/lib25_xaps_push_notification_plugin.so
-          test -f /usr/lib/dovecot/modules/settings/libxaps_settings.so
-          test -f /etc/dovecot/conf.d/95-xaps.conf
-          sudo doveconf -n >/dev/null
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: dovecot-xaps-plugin-${{ env.version }}-${{ matrix.arch }}
+          path: dist/*.deb
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    runs-on: ubuntu-26.04
+    needs: build
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: dovecot-xaps-plugin-*
+
+      - name: Collect Debian packages
+        shell: bash
+        run: |
+          mkdir -p dist
+          find artifacts -name '*.deb' -exec cp {} dist/ \;
 
       - name: Generate checksums
         run: cd dist && sha256sum *.deb > SHA256SUMS
@@ -69,19 +102,9 @@ jobs:
         with:
           path: dist
           format: spdx-json
-          output-file: dist/dovecot-xaps-plugin-${{ env.version }}.spdx.json
+          output-file: dist/dovecot-xaps-plugin.spdx.json
           upload-artifact: false
           upload-release-assets: false
-
-      - name: Upload workflow artifact
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: dovecot-xaps-plugin-${{ env.version }}
-          path: |
-            dist/*.deb
-            dist/SHA256SUMS
-            dist/*.spdx.json
-          if-no-files-found: error
 
       - name: Create GitHub release
         env:

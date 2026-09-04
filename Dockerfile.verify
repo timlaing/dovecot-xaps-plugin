@@ -1,0 +1,44 @@
+FROM ubuntu:26.04
+
+ARG TARGETARCH
+
+RUN dpkg --add-architecture ${TARGETARCH} && \
+    apt-get update && \
+    apt-get install --yes --no-install-recommends \
+        build-essential cmake lintian ca-certificates && \
+    apt-get install --yes --no-install-recommends \
+        dovecot-core:${TARGETARCH} dovecot-dev:${TARGETARCH} && \
+    if [ "${TARGETARCH}" = "arm64" ]; then \
+        apt-get install --yes --no-install-recommends gcc-aarch64-linux-gnu; \
+    fi && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY . .
+
+RUN CMAKE_ARGS=""; \
+    if [ "${TARGETARCH}" = "arm64" ]; then \
+        CMAKE_ARGS="-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc"; \
+    fi && \
+    cmake -S . -B build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DXAPS_VERSION=0.0.0 \
+        -DCPACK_DEBIAN_PACKAGE_ARCHITECTURE=${TARGETARCH} \
+        ${CMAKE_ARGS} && \
+    cmake --build build --parallel && \
+    cpack --config build/CPackConfig.cmake -G DEB -B dist
+
+RUN set -eux; \
+    package=$(find dist -maxdepth 1 -name '*.deb' -print -quit); \
+    echo "=== Package info ===" && \
+    dpkg-deb --info "$package" && \
+    echo "=== Package contents ===" && \
+    dpkg-deb --contents "$package" && \
+    echo "=== Lintian ===" && \
+    lintian --fail-on error "$package" && \
+    echo "=== Dependencies ===" && \
+    dpkg-deb --field "$package" Depends && \
+    echo "=== Architecture ===" && \
+    dpkg-deb --field "$package" Architecture && \
+    echo "=== Verification passed ==="
