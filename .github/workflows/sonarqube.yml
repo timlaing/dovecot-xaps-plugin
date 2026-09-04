@@ -13,7 +13,7 @@ permissions:
 jobs:
   sonarqube:
     runs-on: ubuntu-26.04
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
@@ -25,7 +25,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes build-essential cmake dovecot-core dovecot-dev
+          sudo apt-get install --yes build-essential cmake gcc dovecot-core dovecot-dev
           dpkg --compare-versions "$(dovecot --version | awk '{print $1}')" ge 2.4.2
 
       - name: Generate compilation database
@@ -37,6 +37,30 @@ jobs:
 
       - name: Build
         run: cmake --build build --parallel
+
+      - name: Build with test coverage
+        run: >-
+          cmake -S tests -B build-cov
+          -DCMAKE_C_FLAGS=--coverage
+          -DCMAKE_EXE_LINKER_FLAGS=--coverage &&
+          cmake --build build-cov --parallel
+
+      - name: Run tests
+        run: ctest --test-dir build-cov --output-on-failure
+
+      - name: Generate gcov coverage reports
+        run: |
+          mkdir -p gcov
+          for target in test_xaps_utils test_xaps_push_notification test_xaps_imap; do
+            dir="build-cov/CMakeFiles/${target}.dir"
+            ( cd "$dir" && gcov -b -c *.gcda >/dev/null )
+            mkdir -p "gcov/${target}"
+            cp "$dir"/*.gcov "gcov/${target}/"
+          done
+          python3 scripts/merge-gcov.py --out coverage \
+            gcov/test_xaps_utils \
+            gcov/test_xaps_push_notification \
+            gcov/test_xaps_imap
 
       - name: Check SonarQube credentials
         id: credentials

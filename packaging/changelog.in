@@ -1,5 +1,6 @@
 dovecot-xaps-plugin (@PROJECT_VERSION@-1) stable; urgency=medium
 
+  * Added unit tests for the IMAP, push-notification, settings, and utils modules.
   * Release @PROJECT_VERSION@.
 
  -- dovecot-xaps-plugin contributors <noreply@github.com>  @DEBIAN_CHANGELOG_DATE@

@@ -5,6 +5,8 @@
 .vscode/
 build-test/
 build-cov/
+gcov/
+coverage/
 
 ### CMake template
 CMakeCache.txt

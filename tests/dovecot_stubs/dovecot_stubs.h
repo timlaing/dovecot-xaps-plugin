@@ -103,11 +103,15 @@ typedef struct buffer {
 #define ARRAY_INIT  { NULL, 0, 0 }
 #define EMPTY_ARRAY { NULL, 0, 0 }
 
-/* array iteration — matches Dovecot: assigns to the pre-declared iterator.
-   In unit tests the arrays are empty so the loop body never runs. */
+/* array iteration — matches Dovecot semantics: the array storage is cast to
+   void* for the initial assignment (implicit void* -> typed-pointer), and the
+   end pointer is computed via char* byte arithmetic.  The loops never actually
+   execute in unit tests because the arrays are empty. */
 #define array_foreach(_arr, elem) \
-    for ((elem) = (_arr)->arr; \
-         (elem) != ((_arr)->arr + (_arr)->count); (elem)++)
+    for ((elem) = (void *)(_arr)->arr; \
+         (elem) != (const char *)(const void *)(_arr)->arr + \
+             (size_t)(_arr)->count * sizeof(*(elem)); \
+         (elem)++)
 
 #define array_is_created(_arr) ((_arr)->arr != NULL)
 
@@ -206,10 +210,18 @@ struct setting_parser_info {
 };
 
 void settings_info_register(const struct setting_parser_info *info);
-int settings_get(struct event *event, const struct setting_parser_info *info,
-                 unsigned int flags, const void **set_r,
-                 const char **error_r);
+int settings_get_impl(struct event *event, const struct setting_parser_info *info,
+                      unsigned int flags, const char *source_filename,
+                      unsigned int source_linenum, const void **set_r,
+                      const char **error_r);
 void settings_free(const void *set);
+
+/* Mirror Dovecot's settings_get() macro: it injects __FILE__/__LINE__ and
+   casts the out-param pointer to (void*), hiding the incompatible-pointer
+   conversion that strict compilers would otherwise reject. */
+#define settings_get(event, info, flags, set_r, error_r) \
+    settings_get_impl((event), (info), (flags), __FILE__, __LINE__, \
+                      (void *)(set_r), (error_r))
 
 #define SETTING_DEFINE_STRUCT_STR_NOVARS(key, field, struct_type) \
     { 0, key, offsetof(struct_type, field) }
@@ -392,5 +404,18 @@ bool str_to_int(const char *str, int *num_r);
 
 /* ---- t_strdup_printf (temp pool printf) ---- */
 char *t_strdup_printf(const char *fmt, ...) ATTR_PRINTF(1, 2);
+
+/* ---- test hooks (implemented in dovecot_stubs.c) ----
+   These let tests drive the otherwise-Dovecot-controlled inputs. */
+void test_set_settings_url(const char *url);
+void test_set_settings_user_lookup(const char *lookup);
+void test_set_settings_get_fail(bool fail);
+void test_set_http_url_parse_fail(bool fail);
+void test_set_http_client_init_fail(bool fail);
+void test_set_imap_args(const struct imap_arg *args, unsigned int count);
+void test_set_read_args_fail(bool fail);
+const char *test_get_last_payload(void);
+void test_set_push_events(const struct push_notification_event **events,
+                          unsigned int count);
 
 #endif /* DOVECOT_STUBS_H */

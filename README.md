@@ -77,6 +77,29 @@ sudo systemctl restart dovecot
 
 The installation paths currently target Debian and Ubuntu's Dovecot module layout under `/usr/lib/dovecot/modules`.
 
+Testing
+-------
+
+The test suite builds a standalone test binary for each plugin module using lightweight Dovecot stubs, so it does not
+require a running Dovecot installation.
+
+On Ubuntu 26.04 LTS:
+
+```sh
+sudo apt-get install build-essential cmake
+cmake -S tests -B build-test -DCMAKE_BUILD_TYPE=Release
+cmake --build build-test --parallel
+ctest --test-dir build-test --output-on-failure
+```
+
+Coverage build (used in CI):
+
+```sh
+cmake -S tests -B build-cov -DCMAKE_C_FLAGS="--coverage" -DCMAKE_EXE_LINKER_FLAGS="--coverage"
+cmake --build build-cov --parallel
+ctest --test-dir build-cov --output-on-failure
+```
+
 Build a Debian package
 ----------------------
 

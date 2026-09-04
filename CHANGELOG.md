@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Unit tests for the XAPPLEPUSHSERVICE IMAP, push-notification, settings, and utils modules.
+- Standalone test build using lightweight Dovecot stubs (no running Dovecot required).
+- Coverage build with branch and line coverage measurement via gcov.
 - Debian package build and release automation for Dovecot 2.4.2.
 - Lint, package-validation, SonarQube Cloud, Dependabot, and Release Drafter automation.
 - Contribution, security, conduct, funding, issue, and pull-request community files.

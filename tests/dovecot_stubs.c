@@ -163,9 +163,18 @@ int i_stream_read_data(struct istream *stream, const unsigned char **data_r,
 }
 
 /* ---- http_url ---- */
+static bool test_http_url_parse_fail;
+
+void test_set_http_url_parse_fail(bool fail) { test_http_url_parse_fail = fail; }
+
 int http_url_parse(const char *url, const char *default_host ATTR_UNUSED,
                    unsigned int flags ATTR_UNUSED, pool_t pool,
                    struct http_url **url_r, const char **error_r) {
+    if (test_http_url_parse_fail) {
+        *url_r = NULL;
+        *error_r = "mock url parse failure";
+        return -1;
+    }
     struct http_url *u = calloc(1, sizeof(*u));
     /* Simple parse: just store the URL string as path */
     u->path = strdup(url);
@@ -183,9 +192,20 @@ const char *http_url_to_string(const struct http_url *url, pool_t pool ATTR_UNUS
 }
 
 /* ---- http_client ---- */
+static bool test_http_client_init_fail;
+
+void test_set_http_client_init_fail(bool fail) {
+    test_http_client_init_fail = fail;
+}
+
 int http_client_init_auto(struct event *event ATTR_UNUSED,
                           struct http_client **client_r,
                           const char **error_r) {
+    if (test_http_client_init_fail) {
+        *client_r = NULL;
+        *error_r = "mock http client init failure";
+        return -1;
+    }
     *client_r = (void*)0xDEADBEEF; /* non-NULL sentinel */
     *error_r = NULL;
     return 0;
@@ -193,6 +213,16 @@ int http_client_init_auto(struct event *event ATTR_UNUSED,
 
 static http_client_request_callback_t saved_callback;
 static void *saved_callback_ctx;
+static char last_payload[4096] = "";
+
+/* Expose the most recent HTTP request payload (as text) for assertions. */
+static void test_capture_payload(const unsigned char *data, size_t len) {
+    if (len >= sizeof(last_payload)) len = sizeof(last_payload) - 1;
+    memcpy(last_payload, data, len);
+    last_payload[len] = '\0';
+}
+
+const char *test_get_last_payload(void) { return last_payload; }
 
 struct http_client_request *
 http_client_request_url(struct http_client *client ATTR_UNUSED,
@@ -213,6 +243,9 @@ void http_client_request_add_header(struct http_client_request *req ATTR_UNUSED,
 void http_client_request_set_payload(struct http_client_request *req ATTR_UNUSED,
                                      struct istream *payload ATTR_UNUSED,
                                      bool get_ownership ATTR_UNUSED) {
+    if (payload != NULL && payload->buffer != NULL) {
+        test_capture_payload(payload->buffer, payload->buffer_size);
+    }
 }
 
 void http_client_request_set_event(struct http_client_request *req ATTR_UNUSED,
@@ -225,11 +258,16 @@ void http_client_request_submit(struct http_client_request *req ATTR_UNUSED) {
 void http_client_wait(struct http_client *client ATTR_UNUSED) {
     /* Simulate a successful HTTP response */
     if (saved_callback != NULL) {
+        static const char topic[] = "com.apple.mobilemail-topic-cert-abc123";
+        struct istream *payload =
+            i_stream_create_from_data(topic, sizeof(topic) - 1);
         struct http_response resp = {
             .status = 200,
             .status_line = "OK",
+            .payload = payload,
         };
         saved_callback(&resp, saved_callback_ctx);
+        i_stream_unref(&payload);
     }
 }
 
@@ -251,15 +289,48 @@ void json_append_escaped(string_t *str, const char *src) {
 void settings_info_register(const struct setting_parser_info *info ATTR_UNUSED) {
 }
 
-int settings_get(struct event *event ATTR_UNUSED,
-                 const struct setting_parser_info *info,
-                 unsigned int flags ATTR_UNUSED,
-                 const void **set_r, const char **error_r) {
+/* Test-controllable settings values (NULL = use defaults). */
+static const char *test_settings_url;
+static const char *test_settings_user_lookup;
+static bool test_settings_get_fail;
+
+void test_set_settings_url(const char *url) { test_settings_url = url; }
+void test_set_settings_user_lookup(const char *lookup) {
+    test_settings_user_lookup = lookup;
+}
+void test_set_settings_get_fail(bool fail) { test_settings_get_fail = fail; }
+
+int settings_get_impl(struct event *event ATTR_UNUSED,
+                      const struct setting_parser_info *info,
+                      unsigned int flags ATTR_UNUSED,
+                      const char *source_filename ATTR_UNUSED,
+                      unsigned int source_linenum ATTR_UNUSED,
+                      const void **set_r, const char **error_r) {
+    if (test_settings_get_fail) {
+        *set_r = NULL;
+        *error_r = "mock settings failure";
+        return -1;
+    }
     /* Allocate a struct matching the parser_info's struct_size */
     void *set = calloc(1, info->struct_size);
     /* Copy defaults if present */
     if (info->defaults != NULL) {
         memcpy(set, info->defaults, info->struct_size);
+    }
+    /* Override the string fields the test requested. We locate each field
+       by walking the parser's #define table (key -> struct offset). */
+    if (test_settings_url != NULL || test_settings_user_lookup != NULL) {
+        const struct setting_define *def;
+        for (def = info->defines; def && def->key != NULL; def++) {
+            const char **slot = (const char **)((char *)set + def->offset);
+            if (test_settings_url != NULL &&
+                strcmp(def->key, "xaps_url") == 0) {
+                *slot = strdup(test_settings_url);
+            } else if (test_settings_user_lookup != NULL &&
+                       strcmp(def->key, "xaps_user_lookup") == 0) {
+                *slot = strdup(test_settings_user_lookup);
+            }
+        }
     }
     *set_r = set;
     *error_r = NULL;
@@ -276,7 +347,8 @@ static char last_debug[1024] = "";
 
 const char *test_get_last_error(void) { return last_error; }
 const char *test_get_last_debug(void) { return last_debug; }
-void test_reset_logs(void) { last_error[0] = '\0'; last_debug[0] = '\0'; }
+void test_reset_logs(void) { last_error[0] = '\0'; last_debug[0] = '\0';
+    last_payload[0] = '\0'; }
 
 void i_error(const char *fmt, ...) {
     va_list args;
@@ -325,12 +397,28 @@ bool imap_arg_get_list(const struct imap_arg *arg, const struct imap_arg **list_
 }
 
 /* ---- imap client ---- */
+static const struct imap_arg *test_args;
+static unsigned int test_arg_count;
+static bool test_read_args_fail;
+static struct imap_arg empty_arg = { .type = IMAP_ARG_NIL };
+
+void test_set_imap_args(const struct imap_arg *args, unsigned int count) {
+    test_args = args;
+    test_arg_count = count;
+}
+
+void test_set_read_args_fail(bool fail) { test_read_args_fail = fail; }
+
 bool client_read_args(struct client_command_context *cmd ATTR_UNUSED,
                       unsigned int count ATTR_UNUSED,
                       unsigned int max_args ATTR_UNUSED,
                       const struct imap_arg **args_r) {
-    static struct imap_arg empty_args[1] = {{ .type = IMAP_ARG_NIL }};
-    *args_r = empty_args;
+    if (test_read_args_fail) return FALSE;
+    if (test_args != NULL) {
+        *args_r = test_args;
+        return TRUE;
+    }
+    *args_r = &empty_arg;
     return TRUE;
 }
 
@@ -357,6 +445,13 @@ void command_unregister(const char *name ATTR_UNUSED) {
 /* ---- push notification ---- */
 /* push_notification_events — the global events array (defined here) */
 struct push_notification_events_array push_notification_events = { NULL, 0, 0 };
+
+void test_set_push_events(const struct push_notification_event **events,
+                          unsigned int count) {
+    push_notification_events.arr = events;
+    push_notification_events.count = count;
+    push_notification_events.alloc = count;
+}
 
 void push_notification_driver_register(struct push_notification_driver *driver ATTR_UNUSED) {
 }
