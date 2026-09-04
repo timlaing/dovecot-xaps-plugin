@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: dovecot-xaps-daemon issues
+    url: https://github.com/timlaing/dovecot-xaps-daemon/issues
+    about: Report daemon, APNS credential, or xapsd service problems in the daemon repository
