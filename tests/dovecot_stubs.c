@@ -335,8 +335,41 @@ const char *http_response_get_message(const struct http_response *response) {
 
 /* ---- json ---- */
 void json_append_escaped(string_t *str, const char *src) {
-    /* Minimal: just append as-is (not real JSON escaping, but sufficient for tests) */
-    str_append(str, src);
+    if (src == NULL) {
+        str_append(str, "null");
+        return;
+    }
+    for (const unsigned char *p = (const unsigned char *)src; *p != '\0'; p++) {
+        switch (*p) {
+        case '"':
+            str_append(str, "\\\"");
+            break;
+        case '\\':
+            str_append(str, "\\\\");
+            break;
+        case '\b':
+            str_append(str, "\\b");
+            break;
+        case '\f':
+            str_append(str, "\\f");
+            break;
+        case '\n':
+            str_append(str, "\\n");
+            break;
+        case '\r':
+            str_append(str, "\\r");
+            break;
+        case '\t':
+            str_append(str, "\\t");
+            break;
+        default:
+            if (*p < 0x20) {
+                str_printfa(str, "\\u%04x", *p);
+            } else {
+                str_append_len(str, p, 1);
+            }
+        }
+    }
 }
 
 /* ---- settings ---- */
@@ -359,9 +392,10 @@ int settings_get_impl(struct event *event ATTR_UNUSED,
                       unsigned int flags ATTR_UNUSED,
                       const char *source_filename ATTR_UNUSED,
                       unsigned int source_linenum ATTR_UNUSED,
-                      const void **set_r, const char **error_r) {
+                      void *set_r, const char **error_r) {
+    const void **setp = set_r;
     if (test_settings_get_fail) {
-        *set_r = NULL;
+        *setp = NULL;
         *error_r = "mock settings failure";
         return -1;
     }
@@ -386,7 +420,7 @@ int settings_get_impl(struct event *event ATTR_UNUSED,
             }
         }
     }
-    *set_r = set;
+    *setp = set;
     *error_r = NULL;
     return 0;
 }

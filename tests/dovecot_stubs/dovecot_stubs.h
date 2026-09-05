@@ -220,7 +220,7 @@ struct setting_parser_info {
 void settings_info_register(const struct setting_parser_info *info);
 int settings_get_impl(struct event *event, const struct setting_parser_info *info,
                       unsigned int flags, const char *source_filename,
-                      unsigned int source_linenum, const void **set_r,
+                      unsigned int source_linenum, void *set_r,
                       const char **error_r);
 void settings_free(const void *set);
 
