@@ -27,6 +27,7 @@
 #include <lib.h>
 #include <str.h>
 #include <imap-common.h>
+#include <imap-quote.h>
 #include <http-client.h>
 #include <http-url.h>
 #include <json-generator.h>
@@ -67,14 +68,19 @@ static imap_client_created_func_t *next_hook_client_created;
  */
 static bool parse_xapplepush(struct client_command_context *cmd, struct xaps_attr *xaps_attr) {
     /*
-    * Parse arguments. We expect four key value pairs. We only take
-    * those that we understand for version 2 of this extension.
+    * Parse arguments. We expect five key value pairs (10 args). We only
+    * take those that we understand for version 2 of this extension.
     */
 
     const struct imap_arg *args;
     const char *arg_key, *arg_val;
+    unsigned int nargs = 0;
 
     i_assert(xaps_attr != NULL);
+    /* Initialize the whole struct so missing or out-of-order keys leave
+       NULL fields instead of indeterminate values that validation below
+       could read as undefined behavior. */
+    memset(xaps_attr, 0, sizeof(*xaps_attr));
     xaps_attr->dovecot_username = get_real_mbox_user(cmd->client->user);
 
     if (!client_read_args(cmd, 0, 0, &args)) {
@@ -82,7 +88,25 @@ static bool parse_xapplepush(struct client_command_context *cmd, struct xaps_att
         return FALSE;
     }
 
+    /* We expect at least five key/value pairs (10 args). Count up to a small
+       fixed bound so the fixed 5-pair parse loop below never reads past
+       EOL, while tolerating extra trailing arguments (for forward
+       compatibility) without scanning a maliciously large argument list. */
+    for (nargs = 0; nargs < 12; nargs++) {
+        if (IMAP_ARG_IS_EOL(&args[nargs]))
+            break;
+    }
+    if (nargs < 10) {
+        client_send_command_error(cmd, "Invalid arguments.");
+        return FALSE;
+    }
+
     for (int i = 0; i < 5; i++) {
+        /* Reset per-iteration: the value is only parsed for i<4 (i==4 is the
+           mailboxes list), so an aps-* key appearing in the 5th slot must not
+           pick up a stale value from a previous iteration. */
+        arg_val = NULL;
+
         if (!imap_arg_get_astring(&args[i * 2 + 0], &arg_key)) {
             client_send_command_error(cmd, "Invalid arguments.");
             return FALSE;
@@ -155,8 +179,11 @@ int xaps_register(struct client_command_context *cmd, struct xaps_attr *xaps_att
     struct istream *payload;
     string_t *str;
 
-    i_assert(xaps_global != NULL);
-    i_assert(xaps_global->http_client != NULL);
+    if (xaps_global == NULL || xaps_global->http_url == NULL ||
+        xaps_global->http_client == NULL) {
+        i_error("xaps: cannot register: xaps not configured (missing xaps_url?)");
+        return -1;
+    }
 
     http_req = http_client_request_url(
             xaps_global->http_client, "POST", xaps_global->http_url,
@@ -182,6 +209,7 @@ int xaps_register(struct client_command_context *cmd, struct xaps_attr *xaps_att
         for (int i = 0; !IMAP_ARG_IS_EOL(&xaps_attr->mailboxes[i]); i++) {
             const char *mailbox;
             if (!imap_arg_get_astring(&(xaps_attr->mailboxes[i]), &mailbox)) {
+                str_free(&str);
                 return -1;
             }
             if (!first) {
@@ -196,7 +224,8 @@ int xaps_register(struct client_command_context *cmd, struct xaps_attr *xaps_att
     }
     str_append(str, "}");
 
-    i_debug("Sending registration: %s", str_c(str));
+    /* Do not log device tokens or account IDs, only the account owner. */
+    i_debug("Sending registration for user: %s", xaps_attr->dovecot_username);
 
     payload = i_stream_create_from_data(str_data(str), str_len(str));
     i_stream_add_destroy_callback(payload, str_free_i, str);
@@ -227,13 +256,21 @@ static bool register_client(struct client_command_context *cmd, struct xaps_attr
      */
     http_client_wait(xaps_global->http_client);
 
+    if (xaps_global->aps_topic == NULL || xaps_global->aps_topic[0] == '\0') {
+        client_send_command_error(cmd, "No aps-topic returned by server.");
+        return FALSE;
+    }
+
     /*
-     * Return success. We assume that aps_version and aps_topic do not
-     * contain anything that needs to be escaped.
+     * Return success. aps-topic is untrusted data from the server, so
+     * escape it as an IMAP astring (atom, quoted string or literal).
      */
-    client_send_line(cmd->client,
-                     t_strdup_printf("* XAPPLEPUSHSERVICE aps-version %s aps-topic %s", xaps_attr->aps_version,
-                                     xaps_global->aps_topic));
+    string_t *reply = t_str_new(80);
+    str_append(reply, "* XAPPLEPUSHSERVICE aps-version ");
+    str_append(reply, xaps_attr->aps_version);
+    str_append(reply, " aps-topic ");
+    imap_append_astring(reply, (const char *)xaps_global->aps_topic);
+    client_send_line(cmd->client, str_c(reply));
     client_send_tagline(cmd, "OK XAPPLEPUSHSERVICE completed.");
     return TRUE;
 }
@@ -259,20 +296,115 @@ static bool cmd_xapplepushservice(struct client_command_context *cmd) {
 /**
  * HTTP callback function for /register call
  */
-void xaps_register_callback(const struct http_response *response, void *context) {
+
+/* aps-topic is a short certificate subject string; cap the response so a
+   misbehaving daemon cannot cause unbounded memory growth. */
+#define XAPS_MAX_TOPIC_SIZE 1024
+
+/* Copy the response payload into a NUL-terminated string allocated from
+   dest_pool, so the result outlives the request/response streams. */
+/* Read the response payload into a short-lived buffer, validate it, and
+   only then copy the final aps-topic into dest_pool. This keeps error
+   paths (oversize payload, stream errors, empty body) from accumulating
+   allocations in the long-lived config pool. */
+/* Reject payload data that could break out of an IMAP response line:
+   control characters (including CR/LF) would let a malicious daemon
+   inject arbitrary server responses. */
+static bool xaps_payload_chunk_is_safe(const unsigned char *data, size_t size,
+                                       const char **error_r) {
+    for (size_t i = 0; i < size; i++) {
+        if (data[i] < 0x20 || data[i] == 0x7f) {
+            *error_r = "aps-topic from server contains control characters";
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+static const char *xaps_payload_str(pool_t dest_pool, struct istream *payload,
+                                    const unsigned char *current_topic,
+                                    const char **error_r) {
+    string_t *str;
+    pool_t tmp_pool;
+    const unsigned char *data;
     size_t size;
+    ssize_t ret;
+    const char *topic;
+
+    *error_r = NULL;
+    if (payload == NULL) {
+        *error_r = "server returned no payload";
+        return NULL;
+    }
+    tmp_pool = pool_alloconly_create("xaps payload", 256);
+    str = str_new(tmp_pool, 64);
+    while ((ret = i_stream_read(payload)) > 0) {
+        while (i_stream_read_data(payload, &data, &size, 0) > 0) {
+            if (str_len(str) + size > XAPS_MAX_TOPIC_SIZE) {
+                *error_r = "aps-topic from server exceeds maximum size";
+                pool_unref(&tmp_pool);
+                return NULL;
+            }
+            if (!xaps_payload_chunk_is_safe(data, size, error_r)) {
+                pool_unref(&tmp_pool);
+                return NULL;
+            }
+            str_append_data(str, data, size);
+            i_stream_skip(payload, size);
+        }
+    }
+    if (payload->stream_errno != 0) {
+        *error_r = i_stream_get_error(payload);
+        pool_unref(&tmp_pool);
+        return NULL;
+    }
+    if (str_len(str) == 0) {
+        *error_r = "server returned an empty response";
+        pool_unref(&tmp_pool);
+        return NULL;
+    }
+    /* Reuse the existing topic when unchanged so repeated registrations
+       with an identical aps-topic don't grow the alloc-only config pool. */
+    if (current_topic != NULL &&
+        strcmp((const char *)current_topic, str_c(str)) == 0)
+        topic = (const char *)current_topic;
+    else
+        topic = p_strdup(dest_pool, str_c(str));
+    pool_unref(&tmp_pool);
+    return topic;
+}
+
+void xaps_register_callback(const struct http_response *response, void *context ATTR_UNUSED) {
+    if (xaps_global == NULL)
+        return;
 
     switch (response->status / 100) {
-        case 2:
-            // Success.
-            i_debug("Notification sent successfully: %s", http_response_get_message(response));
-            i_stream_read_data(response->payload, &xaps_global->aps_topic, &size, 128);
-            i_assert(size > 31);
+        case 2: {
+            const char *topic, *error;
+            if (xaps_global->pool == NULL) {
+                i_error("xaps: no config pool; cannot persist aps-topic");
+                /* Fail closed so a partially-initialized config cannot
+                   reuse a stale topic. */
+                xaps_global->aps_topic = NULL;
+                break;
+            }
+            topic = xaps_payload_str(xaps_global->pool, response->payload,
+                                     xaps_global->aps_topic, &error);
+            if (topic == NULL) {
+                i_error("xaps: failed to read aps-topic from server: %s", error);
+                /* Clear any topic from an earlier registration so a
+                   failed re-registration cannot reuse a stale value. */
+                xaps_global->aps_topic = NULL;
+            } else {
+                xaps_global->aps_topic = (const unsigned char *)topic;
+            }
             break;
+        }
 
         default:
             // Error.
-            i_error("Error when sending notification: %s", http_response_get_message(response));
+            i_error("Error when sending registration: %s", http_response_get_message(response));
+            xaps_global->aps_topic = NULL;
             break;
     }
 }

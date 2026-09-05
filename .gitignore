@@ -1,3 +1,14 @@
+### Local environment / editor / test-build
+.env
+.DS_Store
+.devcontainer/
+.vscode/
+Dockerfile.verify
+build-test/
+build-cov/
+gcov/
+coverage/
+
 ### CMake template
 CMakeCache.txt
 CMakeFiles

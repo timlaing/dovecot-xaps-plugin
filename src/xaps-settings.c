@@ -67,6 +67,7 @@ int xaps_settings_get(struct event *event,
     if (*(*set_r)->xaps_url == '\0') {
         *error_r = "xaps_url is required";
         settings_free(*set_r);
+        *set_r = NULL;
         return -1;
     }
 

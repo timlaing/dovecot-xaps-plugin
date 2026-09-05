@@ -98,8 +98,13 @@ static void xaps_notify(struct push_notification_driver_txn *dtxn, struct push_n
     struct istream *payload;
 
     xaps_init(dtxn->ptxn->muser, "/notify", dtxn->ptxn->pool);
-    i_assert(xaps_global != NULL);
-    i_assert(xaps_global->http_client != NULL);
+
+    if (xaps_global == NULL || xaps_global->http_url == NULL ||
+        xaps_global->http_client == NULL) {
+        push_notification_driver_debug(XAPS_LOG_LABEL, dtxn->ptxn->muser,
+            "Skipping notification: xaps not configured (missing xaps_url?)");
+        return;
+    }
 
     http_req = http_client_request_url(
             xaps_global->http_client, "POST", xaps_global->http_url,
