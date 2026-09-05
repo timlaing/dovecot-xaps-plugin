@@ -110,8 +110,7 @@ typedef struct buffer {
    void* for the initial assignment (implicit void* -> typed-pointer), and the
    end pointer is computed via char* byte arithmetic.  The terminating compare
    is done on void* pointers so it never trips -Wcompare-distinct-pointer-types
-   under -Werror.  The loops never actually execute in unit tests because the
-   arrays are empty. */
+   under -Werror. */
 #define array_foreach(_arr, elem) \
     for ((elem) = (void *)(_arr)->arr; \
          (void *)(elem) != (void *)((const char *)(const void *)(_arr)->arr + \
