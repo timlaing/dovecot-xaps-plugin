@@ -83,12 +83,15 @@ static bool parse_xapplepush(struct client_command_context *cmd, struct xaps_att
         return FALSE;
     }
 
-    /* We expect exactly five key/value pairs (10 args). Count until the
-       EOL sentinel so we never read past it. */
-    while (!IMAP_ARG_IS_EOL(&args[nargs]))
-        nargs++;
-
-    if (nargs != 10) {
+    /* We expect at least five key/value pairs (10 args). Count up to a small
+       fixed bound so the fixed 5-pair parse loop below never reads past
+       EOL, while tolerating extra trailing arguments (for forward
+       compatibility) without scanning a maliciously large argument list. */
+    for (nargs = 0; nargs < 12; nargs++) {
+        if (IMAP_ARG_IS_EOL(&args[nargs]))
+            break;
+    }
+    if (nargs < 10) {
         client_send_command_error(cmd, "Invalid arguments.");
         return FALSE;
     }

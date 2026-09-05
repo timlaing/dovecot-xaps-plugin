@@ -346,6 +346,33 @@ static int test_parse_too_few_args(void) {
     return 1;
 }
 
+/* More than 10 arguments (future extension) -> parse still succeeds by
+   only consuming the first five key/value pairs. */
+static int test_parse_extra_args(void) {
+    setup_valid_args();
+    base_args[10].type = IMAP_ARG_ATOM;
+    base_args[10]._data.str = "aps-extra-key";
+    base_args[11].type = IMAP_ARG_ATOM;
+    base_args[11]._data.str = "extra-value";
+    test_set_imap_args(base_args, 12);
+    ensure_global();
+
+    struct client *c = make_client();
+    struct client_command_context *cmd = make_cmd(c);
+    struct xaps_attr attr;
+    memset(&attr, 0, sizeof(attr));
+
+    int rc = 1;
+    bool ok = parse_xapplepush(cmd, &attr);
+    if (!ok) { fprintf(stderr, "  FAIL: parse failed with extra args\n"); rc = 0; }
+    else if (!attr.aps_version || strcmp(attr.aps_version, "2") != 0) rc = 0;
+    else if (!attr.aps_account_id || strcmp(attr.aps_account_id,
+             "0715A26B-CA09-4730-A419-793000CA982E") != 0) rc = 0;
+    i_free(cmd);
+    free_client(c);
+    return rc;
+}
+
 /* ---- xaps_register tests ---- */
 
 static void free_http_state(void) { push_notification_driver_xaps_cleanup(); }
@@ -842,6 +869,7 @@ int main(void) {
     RUN_TEST(test_parse_empty_subtopic);
     RUN_TEST(test_parse_missing_mailboxes);
     RUN_TEST(test_parse_too_few_args);
+    RUN_TEST(test_parse_extra_args);
     RUN_TEST(test_register_with_mailboxes);
     RUN_TEST(test_register_no_mailboxes_default_inbox);
     RUN_TEST(test_register_bad_mailbox_element);

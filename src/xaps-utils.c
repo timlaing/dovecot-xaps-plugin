@@ -108,7 +108,14 @@ void xaps_init(struct mail_user *muser, const char *http_path, pool_t pPool ATTR
        growth of the alloc-only pool from per-call p_strdup(). */
     xaps_global->http_url->path = http_path;
 
-    if (xaps_global->user_lookup == NULL && *xaps_set->xaps_user_lookup != '\0') {
+    /* Refresh user_lookup on (re)configuration. Only allocate when the
+       value actually changed so an alloc-only config pool doesn't grow on
+       every notification/registration, and honor a cleared setting. */
+    if (*xaps_set->xaps_user_lookup == '\0') {
+        if (xaps_global->user_lookup != NULL)
+            xaps_global->user_lookup = NULL;
+    } else if (xaps_global->user_lookup == NULL ||
+               strcmp(xaps_global->user_lookup, xaps_set->xaps_user_lookup) != 0) {
         xaps_global->user_lookup = p_strdup(xaps_global->pool,
                                             xaps_set->xaps_user_lookup);
     }
