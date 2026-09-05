@@ -29,6 +29,25 @@ Prerequisites
 * Mail delivery through Dovecot LDA or LMTP.
 * A running [dovecot-xaps-daemon](https://github.com/timlaing/dovecot-xaps-daemon).
 
+APT repository
+--------------
+
+For Ubuntu and Debian systems, add the signed APT repository for the latest packages:
+
+```sh
+# Add the repository GPG key
+sudo curl -fsSL https://github.com/timlaing/dovecot-xaps-apt/raw/main/KEY.gpg | sudo tee /etc/apt/trusted.gpg.d/dovecot-xaps.asc >/dev/null
+
+# Add the repository
+echo "deb [signed-by=/etc/apt/trusted.gpg.d/dovecot-xaps.asc] https://timlaing.github.io/dovecot-xaps-apt/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/dovecot-xaps.list
+
+# Update and install
+sudo apt-get update
+sudo apt-get install dovecot-xaps-plugin
+```
+
+See [timlaing/dovecot-xaps-apt](https://github.com/timlaing/dovecot-xaps-apt) for more information.
+
 Debian package
 --------------
 
