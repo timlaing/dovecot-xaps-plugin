@@ -410,8 +410,12 @@ struct mailbox {
 bool str_to_uint(const char *str, unsigned int *num_r);
 bool str_to_int(const char *str, int *num_r);
 
-/* ---- t_strdup_printf (temp pool printf) ---- */
+/* ---- t_str_new / t_strdup_printf (temp pool) ---- */
+string_t *t_str_new(size_t initial_size);
 char *t_strdup_printf(const char *fmt, ...) ATTR_PRINTF(1, 2);
+
+/* ---- imap_append_astring (imap-quote.h) ---- */
+void imap_append_astring(string_t *dest, const char *src);
 
 /* ---- test hooks (implemented in dovecot_stubs.c) ----
    These let tests drive the otherwise-Dovecot-controlled inputs. */
@@ -423,7 +427,9 @@ void test_set_http_client_init_fail(bool fail);
 void test_set_imap_args(const struct imap_arg *args, unsigned int count);
 void test_set_read_args_fail(bool fail);
 void test_set_wait_status(unsigned int status);
+void test_set_wait_topic(const char *topic);
 const char *test_get_last_payload(void);
+const char *test_get_last_sent_line(void);
 void test_set_push_events(const struct push_notification_event **events,
                           unsigned int count);
 

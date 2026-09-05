@@ -128,6 +128,37 @@ void str_free(string_t **str) {
     }
 }
 
+string_t *t_str_new(size_t initial_size) {
+    return str_new(NULL, initial_size);
+}
+
+/* Minimal imap_append_astring: emit the value as an atom when it consists
+   only of safe characters, otherwise as a double-quoted string. It is only
+   used by tests to confirm the response line is escaped. */
+void imap_append_astring(string_t *dest, const char *src) {
+    bool needs_quotes = FALSE;
+    if (src == NULL) {
+        str_append(dest, "NIL");
+        return;
+    }
+    for (const char *p = src; *p != '\0'; p++) {
+        if (*p < 0x21 || *p > 0x7e || *p == '"' || *p == '\\') {
+            needs_quotes = TRUE;
+            break;
+        }
+    }
+    if (!needs_quotes) {
+        str_append(dest, src);
+        return;
+    }
+    str_append(dest, "\"");
+    for (const char *p = src; *p != '\0'; p++) {
+        if (*p == '"' || *p == '\\') str_append(dest, "\\");
+        str_append_len(dest, p, 1);
+    }
+    str_append(dest, "\"");
+}
+
 /* ---- istream ---- */
 struct istream *i_stream_create_from_data(const void *data, size_t size) {
     struct istream *stream = calloc(1, sizeof(*stream));
@@ -232,6 +263,10 @@ static unsigned int test_wait_status = 200;
 
 void test_set_wait_status(unsigned int status) { test_wait_status = status; }
 
+static const char *test_wait_topic;
+
+void test_set_wait_topic(const char *topic) { test_wait_topic = topic; }
+
 /* Expose the most recent HTTP request payload (as text) for assertions. */
 static void test_capture_payload(const unsigned char *data, size_t len) {
     if (len >= sizeof(last_payload)) len = sizeof(last_payload) - 1;
@@ -275,9 +310,11 @@ void http_client_request_submit(struct http_client_request *req ATTR_UNUSED) {
 void http_client_wait(struct http_client *client ATTR_UNUSED) {
     /* Simulate a successful HTTP response */
     if (saved_callback != NULL) {
-        static const char topic[] = "com.apple.mobilemail-topic-cert-abc123";
+        static const char default_topic[] = "com.apple.mobilemail-topic-cert-abc123";
+        const char *topic = test_wait_topic;
+        if (topic == NULL) topic = default_topic;
         struct istream *payload =
-            i_stream_create_from_data(topic, sizeof(topic) - 1);
+            i_stream_create_from_data(topic, strlen(topic));
         struct http_response resp = {
             .status = test_wait_status,
             .status_line = "OK",
@@ -361,6 +398,7 @@ void settings_free(const void *set) {
 /* ---- logging ---- */
 static char last_error[1024] = "";
 static char last_debug[1024] = "";
+static char last_sent_line[1024] = "";
 
 const char *test_get_last_error(void) { return last_error; }
 const char *test_get_last_debug(void) { return last_debug; }
@@ -443,8 +481,16 @@ void client_send_command_error(struct client_command_context *cmd ATTR_UNUSED,
                                const char *msg ATTR_UNUSED) {
 }
 
-void client_send_line(struct client *client ATTR_UNUSED, const char *line ATTR_UNUSED) {
+void client_send_line(struct client *client ATTR_UNUSED, const char *line) {
+    if (line != NULL) {
+        strncpy(last_sent_line, line, sizeof(last_sent_line) - 1);
+        last_sent_line[sizeof(last_sent_line) - 1] = '\0';
+    } else {
+        last_sent_line[0] = '\0';
+    }
 }
+
+const char *test_get_last_sent_line(void) { return last_sent_line; }
 
 void client_send_tagline(struct client_command_context *cmd ATTR_UNUSED,
                          const char *line ATTR_UNUSED) {

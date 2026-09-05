@@ -27,6 +27,7 @@
 #include <lib.h>
 #include <str.h>
 #include <imap-common.h>
+#include <imap-quote.h>
 #include <http-client.h>
 #include <http-url.h>
 #include <json-generator.h>
@@ -261,12 +262,15 @@ static bool register_client(struct client_command_context *cmd, struct xaps_attr
     }
 
     /*
-     * Return success. We assume that aps_version and aps_topic do not
-     * contain anything that needs to be escaped.
+     * Return success. aps-topic is untrusted data from the server, so
+     * escape it as an IMAP astring (atom, quoted string or literal).
      */
-    client_send_line(cmd->client,
-                     t_strdup_printf("* XAPPLEPUSHSERVICE aps-version %s aps-topic %s", xaps_attr->aps_version,
-                                     xaps_global->aps_topic));
+    string_t *reply = t_str_new(80);
+    str_append(reply, "* XAPPLEPUSHSERVICE aps-version ");
+    str_append(reply, xaps_attr->aps_version);
+    str_append(reply, " aps-topic ");
+    imap_append_astring(reply, (const char *)xaps_global->aps_topic);
+    client_send_line(cmd->client, str_c(reply));
     client_send_tagline(cmd, "OK XAPPLEPUSHSERVICE completed.");
     return TRUE;
 }
@@ -326,6 +330,13 @@ static const char *xaps_payload_str(pool_t dest_pool, struct istream *payload,
                 *error_r = "aps-topic from server exceeds maximum size";
                 pool_unref(&tmp_pool);
                 return NULL;
+            }
+            for (size_t i = 0; i < size; i++) {
+                if (data[i] < 0x20 || data[i] == 0x7f) {
+                    *error_r = "aps-topic from server contains control characters";
+                    pool_unref(&tmp_pool);
+                    return NULL;
+                }
             }
             str_append_data(str, data, size);
             i_stream_skip(payload, size);

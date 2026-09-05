@@ -823,6 +823,63 @@ static int test_register_callback_2xx_oversize(void) {
     return 1;
 }
 
+/* 2xx payload containing control characters -> rejected, no aps-topic */
+static int test_register_callback_2xx_control_char(void) {
+    xaps_global = i_new(struct xaps_config, 1);
+    xaps_global->pool = pool_alloconly_create("test", 64);
+    const char *topic_data = "evil topic\r\n* INBOX FILLED";
+    struct istream *stream = i_stream_create_from_data(topic_data, strlen(topic_data));
+    struct http_response resp = {
+        .status = 200,
+        .status_line = "OK",
+        .payload = stream,
+    };
+    test_reset_logs();
+    xaps_register_callback(&resp, NULL);
+    const char *err = test_get_last_error();
+    int ok = (err[0] != '\0' && xaps_global->aps_topic == NULL);
+    i_stream_unref(&stream);
+    pool_unref(&xaps_global->pool);
+    i_free(xaps_global);
+    xaps_global = NULL;
+    if (!ok) { fprintf(stderr, "  FAIL: expected control-char rejection\n"); return 0; }
+    return 1;
+}
+
+/* aps-topic with spaces/quotes must be escaped in the IMAP response line */
+static int test_register_client_escapes_topic(void) {
+    init_global_url();
+    struct xaps_attr attr;
+    memset(&attr, 0, sizeof(attr));
+    attr.aps_version = "2";
+    attr.aps_account_id = "acct-1";
+    attr.aps_device_token = "tok-1";
+    attr.aps_subtopic = "com.apple.mobilemail";
+    attr.dovecot_username = "user@example.com";
+    attr.mailboxes = NULL;
+
+    test_set_wait_topic("topic with \"quotes\" and spaces");
+    struct client *c = make_client();
+    struct client_command_context *cmd = make_cmd(c);
+
+    bool ok = register_client(cmd, &attr);
+    const char *line = test_get_last_sent_line();
+
+    i_free(cmd);
+    free_client(c);
+    free_http_state();
+    test_set_wait_topic(NULL);
+
+    if (!ok) { fprintf(stderr, "  FAIL: register_client failed\n"); return 0; }
+    if (line == NULL || strcmp(line,
+        "* XAPPLEPUSHSERVICE aps-version 2 aps-topic \"topic with \\\"quotes\\\" and spaces\"") != 0) {
+        fprintf(stderr, "  FAIL: response line not escaped: '%s'\n",
+                line == NULL ? "(null)" : line);
+        return 0;
+    }
+    return 1;
+}
+
 /* ---- client_created hook tests ---- */
 
 static int test_client_created_with_next_hook(void) {
@@ -973,6 +1030,8 @@ int main(void) {
     RUN_TEST(test_register_callback_3xx);
     RUN_TEST(test_register_callback_5xx);
     RUN_TEST(test_register_callback_2xx_oversize);
+    RUN_TEST(test_register_callback_2xx_control_char);
+    RUN_TEST(test_register_client_escapes_topic);
     RUN_TEST(test_client_created_with_next_hook);
     RUN_TEST(test_client_created_no_next_hook);
     RUN_TEST(test_client_created_next_hook);
