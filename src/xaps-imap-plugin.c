@@ -97,6 +97,11 @@ static bool parse_xapplepush(struct client_command_context *cmd, struct xaps_att
     }
 
     for (int i = 0; i < 5; i++) {
+        /* Reset per-iteration: the value is only parsed for i<4 (i==4 is the
+           mailboxes list), so an aps-* key appearing in the 5th slot must not
+           pick up a stale value from a previous iteration. */
+        arg_val = NULL;
+
         if (!imap_arg_get_astring(&args[i * 2 + 0], &arg_key)) {
             client_send_command_error(cmd, "Invalid arguments.");
             return FALSE;
@@ -295,6 +300,7 @@ static bool cmd_xapplepushservice(struct client_command_context *cmd) {
    paths (oversize payload, stream errors, empty body) from accumulating
    allocations in the long-lived config pool. */
 static const char *xaps_payload_str(pool_t dest_pool, struct istream *payload,
+                                    const unsigned char *current_topic,
                                     const char **error_r) {
     string_t *str;
     pool_t tmp_pool;
@@ -331,7 +337,13 @@ static const char *xaps_payload_str(pool_t dest_pool, struct istream *payload,
         pool_unref(&tmp_pool);
         return NULL;
     }
-    topic = p_strdup(dest_pool, str_c(str));
+    /* Reuse the existing topic when unchanged so repeated registrations
+       with an identical aps-topic don't grow the alloc-only config pool. */
+    if (current_topic != NULL &&
+        strcmp((const char *)current_topic, str_c(str)) == 0)
+        topic = (const char *)current_topic;
+    else
+        topic = p_strdup(dest_pool, str_c(str));
     pool_unref(&tmp_pool);
     return topic;
 }
@@ -350,7 +362,8 @@ void xaps_register_callback(const struct http_response *response, void *context)
                 xaps_global->aps_topic = NULL;
                 break;
             }
-            topic = xaps_payload_str(xaps_global->pool, response->payload, &error);
+            topic = xaps_payload_str(xaps_global->pool, response->payload,
+                                     xaps_global->aps_topic, &error);
             if (topic == NULL) {
                 i_error("xaps: failed to read aps-topic from server: %s", error);
                 /* Clear any topic from an earlier registration so a

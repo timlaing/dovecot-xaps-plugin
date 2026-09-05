@@ -90,18 +90,31 @@ void xaps_init(struct mail_user *muser, const char *http_path, pool_t pPool ATTR
     }
 
     /* Keep the parsed URL in our own pool so it outlives the transient
-       transaction/command pool the caller provided. */
-    if (xaps_global->http_url == NULL) {
+       transaction/command pool the caller provided. Refresh it whenever the
+       configured URL changes (config reload / per-user override), only
+       parsing again when the setting differs so an alloc-only config pool
+       doesn't grow on every notification/registration. */
+    if (xaps_global->http_url == NULL ||
+        xaps_global->http_url_setting == NULL ||
+        strcmp(xaps_global->http_url_setting, xaps_set->xaps_url) != 0) {
+        struct http_url *new_url = NULL;
+        const char *new_error = NULL;
         int ret = http_url_parse(xaps_set->xaps_url, NULL,
                                  HTTP_URL_ALLOW_USERINFO_PART,
-                                 xaps_global->pool,
-                                 &xaps_global->http_url, &error);
+                                 xaps_global->pool, &new_url, &new_error);
         if (ret != 0) {
             i_error("xaps: Failed to parse xaps_url '%s': %s",
-                    xaps_set->xaps_url, error);
+                    xaps_set->xaps_url, new_error);
+            /* Drop the stale URL so notifications fail closed instead of
+               being misrouted to the old endpoint. */
+            xaps_global->http_url = NULL;
+            xaps_global->http_url_setting = NULL;
             settings_free(xaps_set);
             return;
         }
+        xaps_global->http_url = new_url;
+        xaps_global->http_url_setting = p_strdup(xaps_global->pool,
+                                                 xaps_set->xaps_url);
     }
     /* Callers pass string literals ("/notify", "/register"), so direct
        assignment avoids both the transient-pool use-after-free and unbounded

@@ -297,6 +297,143 @@ static int test_xaps_init_reuses_http_client(void) {
     return 1;
 }
 
+/* xaps_init re-parses xaps_url when settings change (config reload /
+   per-user override), not just the first time. */
+static int test_xaps_init_reparses_url_on_change(void) {
+    xaps_global = NULL;
+    test_set_settings_url("http://[::1]:11619");
+    test_set_settings_user_lookup("");
+
+    struct mail_user *u = make_user("testuser", NULL);
+    xaps_init(u, "/notify", NULL);
+
+    int ok = (xaps_global != NULL && xaps_global->http_url != NULL &&
+              strcmp(xaps_global->http_url_setting, "http://[::1]:11619") == 0);
+    if (!ok)
+        fprintf(stderr, "  FAIL: initial url not cached\n");
+
+    /* Reload with a different URL: http_url must be refreshed and the
+       cached setting string updated. */
+    test_set_settings_url("https://xaps.example.org:9443");
+    xaps_init(u, "/register", NULL);
+    if (ok && !(xaps_global->http_url_setting != NULL &&
+                strcmp(xaps_global->http_url_setting,
+                       "https://xaps.example.org:9443") == 0))
+        ok = 0;
+    if (ok && strcmp(xaps_global->http_url->path, "/register") != 0) {
+        fprintf(stderr, "  FAIL: path not refreshed after re-parse\n");
+        ok = 0;
+    }
+
+    i_free((char*)u->username);
+    i_free(u);
+    push_notification_driver_xaps_cleanup();
+    return ok;
+}
+
+/* xaps_init drops the cached URL when a reload introduces an unparseable
+   xaps_url so notifications fail closed instead of misrouting. */
+static int test_xaps_init_parse_failure_closes_stale_url(void) {
+    xaps_global = NULL;
+    test_set_settings_url("http://[::1]:11619");
+    test_set_settings_user_lookup("");
+
+    struct mail_user *u = make_user("testuser", NULL);
+    xaps_init(u, "/notify", NULL);
+
+    int ok = (xaps_global != NULL && xaps_global->http_url != NULL);
+    if (!ok)
+        fprintf(stderr, "  FAIL: no initial url to test against\n");
+
+    test_set_http_url_parse_fail(TRUE);
+    test_set_settings_url("https://bad.invalid");
+    test_reset_logs();
+    xaps_init(u, "/register", NULL);
+    test_set_http_url_parse_fail(FALSE);
+    if (ok && xaps_global->http_url != NULL) {
+        fprintf(stderr, "  FAIL: stale url retained after parse failure\n");
+        ok = 0;
+    }
+    if (ok && xaps_global->http_url_setting != NULL) {
+        fprintf(stderr, "  FAIL: stale url setting retained\n");
+        ok = 0;
+    }
+    if (test_get_last_error()[0] == '\0') {
+        fprintf(stderr, "  FAIL: expected parse failure error\n");
+        ok = 0;
+    }
+
+    i_free((char*)u->username);
+    i_free(u);
+    push_notification_driver_xaps_cleanup();
+    return ok;
+}
+
+/* xaps_init honors a config-reload change of xaps_user_lookup (different
+   key, and cleared back to empty). */
+static int test_xaps_init_user_lookup_refresh_on_change(void) {
+    xaps_global = NULL;
+    test_set_settings_url("http://[::1]:11619");
+    test_set_settings_user_lookup("mail");
+
+    struct mail_user *u = make_user("testuser", NULL);
+    xaps_init(u, "/notify", NULL);
+
+    int ok = (xaps_global != NULL && xaps_global->user_lookup != NULL &&
+              strcmp(xaps_global->user_lookup, "mail") == 0);
+    if (!ok)
+        fprintf(stderr, "  FAIL: initial user_lookup not set\n");
+
+    test_set_settings_user_lookup("login");
+    xaps_init(u, "/register", NULL);
+    if (ok && !(xaps_global->user_lookup != NULL &&
+                strcmp(xaps_global->user_lookup, "login") == 0)) {
+        fprintf(stderr, "  FAIL: user_lookup not refreshed on change\n");
+        ok = 0;
+    }
+
+    test_set_settings_user_lookup("");
+    xaps_init(u, "/notify", NULL);
+    if (ok && xaps_global->user_lookup != NULL) {
+        fprintf(stderr, "  FAIL: user_lookup not cleared when setting emptied\n");
+        ok = 0;
+    }
+
+    i_free((char*)u->username);
+    i_free(u);
+    push_notification_driver_xaps_cleanup();
+    return ok;
+}
+
+/* xaps_init reuses the same user_lookup pointer when unchanged (no
+   alloc-only pool growth on identical reconfigs). */
+static int test_xaps_init_user_lookup_stable_pointer(void) {
+    xaps_global = NULL;
+    test_set_settings_url("http://[::1]:11619");
+    test_set_settings_user_lookup("mail");
+
+    struct mail_user *u = make_user("testuser", NULL);
+    xaps_init(u, "/notify", NULL);
+    const char *first = xaps_global->user_lookup;
+
+    int ok = (first != NULL);
+    if (ok && strcmp(first, "mail") != 0) {
+        fprintf(stderr, "  FAIL: unexpected initial user_lookup\n");
+        ok = 0;
+    }
+
+    xaps_init(u, "/register", NULL);
+    if (ok && xaps_global->user_lookup != first) {
+        fprintf(stderr, "  FAIL: unchanged user_lookup was reallocated\n");
+        ok = 0;
+    }
+
+    i_free((char*)u->username);
+    i_free(u);
+    push_notification_driver_xaps_cleanup();
+    return ok;
+}
+
 /* xaps_url is valid but http_url_parse fails -> error logged, no http_url */
 static int test_xaps_init_url_parse_failure(void) {
     xaps_global = NULL;
@@ -414,6 +551,10 @@ int main(void) {
     RUN_TEST(test_xaps_init_success_no_lookup);
     RUN_TEST(test_xaps_init_reuses_http_client);
     RUN_TEST(test_xaps_init_url_parse_failure);
+    RUN_TEST(test_xaps_init_reparses_url_on_change);
+    RUN_TEST(test_xaps_init_parse_failure_closes_stale_url);
+    RUN_TEST(test_xaps_init_user_lookup_refresh_on_change);
+    RUN_TEST(test_xaps_init_user_lookup_stable_pointer);
     RUN_TEST(test_xaps_init_client_init_failure);
     RUN_TEST(test_settings_get_failure);
     RUN_TEST(test_deinit_null_global);

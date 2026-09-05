@@ -41,6 +41,7 @@ const char *get_real_mbox_user(struct mail_user *muser);
 struct xaps_config {
     pool_t pool;
     struct http_url *http_url;
+    const char *http_url_setting;
     struct http_client *http_client;
     const char *user_lookup;
     const unsigned char *aps_topic;

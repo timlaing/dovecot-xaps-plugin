@@ -326,6 +326,57 @@ static int test_parse_missing_mailboxes(void) {
     return 1;
 }
 
+/* Key/value pairs reordered so an aps-* key lands in the fifth slot (which
+   is the mailboxes list position). arg_val must not pick up a stale value;
+   the parser should fail cleanly on the NULL version. */
+static int test_parse_reordered_fifth_slot(void) {
+    setup_valid_args();
+    /* slot 0: aps-account-id */
+    base_args[0].type = IMAP_ARG_ATOM;
+    base_args[0]._data.str = "aps-account-id";
+    base_args[1].type = IMAP_ARG_ATOM;
+    base_args[1]._data.str = "0715A26B-CA09-4730-A419-793000CA982E";
+    /* slot 1: mailboxes list moved up */
+    base_args[2].type = IMAP_ARG_ATOM;
+    base_args[2]._data.str = "mailboxes";
+    base_args[3].type = IMAP_ARG_LIST;
+    base_args[3]._data.list = mailbox_list;
+    /* slot 2: aps-subtopic */
+    base_args[4].type = IMAP_ARG_ATOM;
+    base_args[4]._data.str = "aps-subtopic";
+    base_args[5].type = IMAP_ARG_ATOM;
+    base_args[5]._data.str = "com.apple.mobilemail";
+    /* slot 3: aps-device-token */
+    base_args[6].type = IMAP_ARG_ATOM;
+    base_args[6]._data.str = "aps-device-token";
+    base_args[7].type = IMAP_ARG_ATOM;
+    base_args[7]._data.str = "token-abc123";
+    /* slot 4 (mailboxes position): aps-version - must NOT lift a stale value */
+    base_args[8].type = IMAP_ARG_ATOM;
+    base_args[8]._data.str = "aps-version";
+    base_args[9].type = IMAP_ARG_ATOM;
+    base_args[9]._data.str = "2";
+    test_set_imap_args(base_args, 12);
+    ensure_global();
+
+    struct client *c = make_client();
+    struct client_command_context *cmd = make_cmd(c);
+    struct xaps_attr attr;
+    memset(&attr, 0, sizeof(attr));
+
+    bool ok = parse_xapplepush(cmd, &attr);
+    i_free(cmd);
+    free_client(c);
+    /* aps_version must be NULL (arg_val reset), so the version check fails
+       instead of crashing on a stale/uninitialized value. */
+    if (attr.aps_version != NULL) {
+        fprintf(stderr, "  FAIL: aps_version picked up stale value\n");
+        return 0;
+    }
+    if (ok) { fprintf(stderr, "  FAIL: expected version failure\n"); return 0; }
+    return 1;
+}
+
 /* Less than 10 arguments -> parse fails without reading out of bounds */
 static int test_parse_too_few_args(void) {
     setup_valid_args();
@@ -656,6 +707,39 @@ static int test_register_callback_2xx(void) {
     return 1;
 }
 
+/* 2xx with unchanged topic -> same aps_topic pointer is reused (no growth) */
+static int test_register_callback_2xx_unchanged_topic(void) {
+    xaps_global = i_new(struct xaps_config, 1);
+    xaps_global->pool = pool_alloconly_create("test", 64);
+    const char *topic_data = "com.apple.mobilemail-certificate-topic-data";
+    struct istream *stream = i_stream_create_from_data(topic_data, strlen(topic_data));
+    struct http_response resp = {
+        .status = 200,
+        .status_line = "OK",
+        .payload = stream,
+    };
+    test_reset_logs();
+    xaps_register_callback(&resp, NULL);
+    const unsigned char *first = xaps_global->aps_topic;
+    int ok = (first != NULL);
+    /* Second identical registration must reuse the existing pointer rather
+       than allocating a new copy in the alloc-only config pool. */
+    struct istream *stream2 = i_stream_create_from_data(topic_data, strlen(topic_data));
+    resp.payload = stream2;
+    xaps_register_callback(&resp, NULL);
+    if (ok && xaps_global->aps_topic != first) {
+        fprintf(stderr, "  FAIL: unchanged aps-topic was reallocated\n");
+        ok = 0;
+    }
+    i_stream_unref(&stream);
+    i_stream_unref(&stream2);
+    pool_unref(&xaps_global->pool);
+    i_free(xaps_global);
+    xaps_global = NULL;
+    if (!ok) return 0;
+    return 1;
+}
+
 /* 2xx but empty payload -> error logged and any stale aps-topic is cleared */
 static int test_register_callback_2xx_empty(void) {
     xaps_global = i_new(struct xaps_config, 1);
@@ -869,6 +953,7 @@ int main(void) {
     RUN_TEST(test_parse_empty_subtopic);
     RUN_TEST(test_parse_missing_mailboxes);
     RUN_TEST(test_parse_too_few_args);
+    RUN_TEST(test_parse_reordered_fifth_slot);
     RUN_TEST(test_parse_extra_args);
     RUN_TEST(test_register_with_mailboxes);
     RUN_TEST(test_register_no_mailboxes_default_inbox);
@@ -881,6 +966,7 @@ int main(void) {
     RUN_TEST(test_cmd_parse_failure);
     RUN_TEST(test_cmd_register_failure);
     RUN_TEST(test_register_callback_2xx);
+    RUN_TEST(test_register_callback_2xx_unchanged_topic);
     RUN_TEST(test_register_callback_2xx_empty);
     RUN_TEST(test_register_callback_3xx);
     RUN_TEST(test_register_callback_5xx);
