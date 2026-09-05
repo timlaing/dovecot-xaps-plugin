@@ -307,6 +307,20 @@ static bool cmd_xapplepushservice(struct client_command_context *cmd) {
    only then copy the final aps-topic into dest_pool. This keeps error
    paths (oversize payload, stream errors, empty body) from accumulating
    allocations in the long-lived config pool. */
+/* Reject payload data that could break out of an IMAP response line:
+   control characters (including CR/LF) would let a malicious daemon
+   inject arbitrary server responses. */
+static bool xaps_payload_chunk_is_safe(const unsigned char *data, size_t size,
+                                       const char **error_r) {
+    for (size_t i = 0; i < size; i++) {
+        if (data[i] < 0x20 || data[i] == 0x7f) {
+            *error_r = "aps-topic from server contains control characters";
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
 static const char *xaps_payload_str(pool_t dest_pool, struct istream *payload,
                                     const unsigned char *current_topic,
                                     const char **error_r) {
@@ -331,12 +345,9 @@ static const char *xaps_payload_str(pool_t dest_pool, struct istream *payload,
                 pool_unref(&tmp_pool);
                 return NULL;
             }
-            for (size_t i = 0; i < size; i++) {
-                if (data[i] < 0x20 || data[i] == 0x7f) {
-                    *error_r = "aps-topic from server contains control characters";
-                    pool_unref(&tmp_pool);
-                    return NULL;
-                }
+            if (!xaps_payload_chunk_is_safe(data, size, error_r)) {
+                pool_unref(&tmp_pool);
+                return NULL;
             }
             str_append_data(str, data, size);
             i_stream_skip(payload, size);
