@@ -67,8 +67,8 @@ static imap_client_created_func_t *next_hook_client_created;
  */
 static bool parse_xapplepush(struct client_command_context *cmd, struct xaps_attr *xaps_attr) {
     /*
-    * Parse arguments. We expect four key value pairs. We only take
-    * those that we understand for version 2 of this extension.
+    * Parse arguments. We expect five key value pairs (10 args). We only
+    * take those that we understand for version 2 of this extension.
     */
 
     const struct imap_arg *args;
@@ -287,23 +287,31 @@ static bool cmd_xapplepushservice(struct client_command_context *cmd) {
 
 /* Copy the response payload into a NUL-terminated string allocated from
    dest_pool, so the result outlives the request/response streams. */
+/* Read the response payload into a short-lived buffer, validate it, and
+   only then copy the final aps-topic into dest_pool. This keeps error
+   paths (oversize payload, stream errors, empty body) from accumulating
+   allocations in the long-lived config pool. */
 static const char *xaps_payload_str(pool_t dest_pool, struct istream *payload,
                                     const char **error_r) {
     string_t *str;
+    pool_t tmp_pool;
     const unsigned char *data;
     size_t size;
     ssize_t ret;
+    const char *topic;
 
     *error_r = NULL;
     if (payload == NULL) {
         *error_r = "server returned no payload";
         return NULL;
     }
-    str = str_new(dest_pool, 64);
+    tmp_pool = pool_alloconly_create("xaps payload", 256);
+    str = str_new(tmp_pool, 64);
     while ((ret = i_stream_read(payload)) > 0) {
         while (i_stream_read_data(payload, &data, &size, 0) > 0) {
             if (str_len(str) + size > XAPS_MAX_TOPIC_SIZE) {
                 *error_r = "aps-topic from server exceeds maximum size";
+                pool_unref(&tmp_pool);
                 return NULL;
             }
             str_append_data(str, data, size);
@@ -312,13 +320,17 @@ static const char *xaps_payload_str(pool_t dest_pool, struct istream *payload,
     }
     if (payload->stream_errno != 0) {
         *error_r = i_stream_get_error(payload);
+        pool_unref(&tmp_pool);
         return NULL;
     }
     if (str_len(str) == 0) {
         *error_r = "server returned an empty response";
+        pool_unref(&tmp_pool);
         return NULL;
     }
-    return str_c(str);
+    topic = p_strdup(dest_pool, str_c(str));
+    pool_unref(&tmp_pool);
+    return topic;
 }
 
 void xaps_register_callback(const struct http_response *response, void *context) {
