@@ -76,6 +76,10 @@ static bool parse_xapplepush(struct client_command_context *cmd, struct xaps_att
     unsigned int nargs = 0;
 
     i_assert(xaps_attr != NULL);
+    /* Initialize the whole struct so missing or out-of-order keys leave
+       NULL fields instead of indeterminate values that validation below
+       could read as undefined behavior. */
+    memset(xaps_attr, 0, sizeof(*xaps_attr));
     xaps_attr->dovecot_username = get_real_mbox_user(cmd->client->user);
 
     if (!client_read_args(cmd, 0, 0, &args)) {
@@ -348,7 +352,7 @@ static const char *xaps_payload_str(pool_t dest_pool, struct istream *payload,
     return topic;
 }
 
-void xaps_register_callback(const struct http_response *response, void *context) {
+void xaps_register_callback(const struct http_response *response, void *context ATTR_UNUSED) {
     if (xaps_global == NULL)
         return;
 

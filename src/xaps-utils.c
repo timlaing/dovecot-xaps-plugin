@@ -86,6 +86,12 @@ void xaps_init(struct mail_user *muser, const char *http_path, pool_t pPool ATTR
 
     if (xaps_settings_get(muser->event, &xaps_set, &error) < 0) {
         i_error("xaps: Failed to get settings: %s", error);
+        /* Fail closed: if a config reload leaves xaps_url unset or settings
+           retrieval broken, drop any cached endpoint so notifications and
+           registrations stop rather than continue to a stale daemon. */
+        xaps_global->http_url = NULL;
+        xaps_global->http_url_setting = NULL;
+        xaps_global->user_lookup = NULL;
         return;
     }
 

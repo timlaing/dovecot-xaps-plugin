@@ -362,12 +362,14 @@ static int test_parse_reordered_fifth_slot(void) {
     struct client *c = make_client();
     struct client_command_context *cmd = make_cmd(c);
     struct xaps_attr attr;
-    memset(&attr, 0, sizeof(attr));
+    /* Deliberately leave attr uninitialized to verify parse_xapplepush()
+       zeroes it and missing/misordered fields read as NULL, not garbage. */
+    memset(&attr, 0xAB, sizeof(attr));
 
     bool ok = parse_xapplepush(cmd, &attr);
     i_free(cmd);
     free_client(c);
-    /* aps_version must be NULL (arg_val reset), so the version check fails
+    /* aps_version must be NULL (zeroed attr), so the version check fails
        instead of crashing on a stale/uninitialized value. */
     if (attr.aps_version != NULL) {
         fprintf(stderr, "  FAIL: aps_version picked up stale value\n");

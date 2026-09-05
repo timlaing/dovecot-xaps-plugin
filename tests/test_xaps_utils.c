@@ -434,6 +434,49 @@ static int test_xaps_init_user_lookup_stable_pointer(void) {
     return ok;
 }
 
+/* xaps_init fails closed when settings_get fails after a prior successful
+   init: cached URL and user_lookup are dropped so no stale endpoint is used. */
+static int test_xaps_init_settings_failure_clears_cache(void) {
+    xaps_global = NULL;
+    test_set_settings_url("http://[::1]:11619");
+    test_set_settings_user_lookup("mail");
+
+    struct mail_user *u = make_user("testuser", NULL);
+    xaps_init(u, "/notify", NULL);
+
+    int ok = (xaps_global != NULL && xaps_global->http_url != NULL &&
+              xaps_global->user_lookup != NULL);
+    if (!ok)
+        fprintf(stderr, "  FAIL: no cached config to test clearing of\n");
+
+    /* A later reload that fails settings retrieval must drop the cache. */
+    test_set_settings_get_fail(TRUE);
+    test_reset_logs();
+    xaps_init(u, "/register", NULL);
+    test_set_settings_get_fail(FALSE);
+    if (ok && xaps_global->http_url != NULL) {
+        fprintf(stderr, "  FAIL: stale http_url retained after settings failure\n");
+        ok = 0;
+    }
+    if (ok && xaps_global->http_url_setting != NULL) {
+        fprintf(stderr, "  FAIL: stale http_url_setting retained\n");
+        ok = 0;
+    }
+    if (ok && xaps_global->user_lookup != NULL) {
+        fprintf(stderr, "  FAIL: stale user_lookup retained\n");
+        ok = 0;
+    }
+    if (test_get_last_error()[0] == '\0') {
+        fprintf(stderr, "  FAIL: expected settings failure error\n");
+        ok = 0;
+    }
+
+    i_free((char*)u->username);
+    i_free(u);
+    push_notification_driver_xaps_cleanup();
+    return ok;
+}
+
 /* xaps_url is valid but http_url_parse fails -> error logged, no http_url */
 static int test_xaps_init_url_parse_failure(void) {
     xaps_global = NULL;
@@ -555,6 +598,7 @@ int main(void) {
     RUN_TEST(test_xaps_init_parse_failure_closes_stale_url);
     RUN_TEST(test_xaps_init_user_lookup_refresh_on_change);
     RUN_TEST(test_xaps_init_user_lookup_stable_pointer);
+    RUN_TEST(test_xaps_init_settings_failure_clears_cache);
     RUN_TEST(test_xaps_init_client_init_failure);
     RUN_TEST(test_settings_get_failure);
     RUN_TEST(test_deinit_null_global);
