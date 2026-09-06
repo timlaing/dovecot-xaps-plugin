@@ -11,48 +11,64 @@ permissions:
 
 jobs:
   test:
-    name: Test ${{ matrix.name }}
-    runs-on: ubuntu-26.04
+    name: Test dovecot-${{ matrix.dovecot-major }} ${{ matrix.name }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
+        name: [x64, arm64]
+        dovecot-major: [2.4, 2.3]
         include:
-          - name: x64
-            platform: linux/amd64
-          - name: arm64
-            platform: linux/arm64
+          - dovecot-major: 2.4
+            image: ubuntu:26.04
+          - dovecot-major: 2.3
+            image: ubuntu:24.04
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
 
       - name: Set up QEMU for arm64
-        if: matrix.platform == 'linux/arm64'
+        if: matrix.name == 'arm64'
         uses: docker/setup-qemu-action@v3
 
-      - name: Verify inside Ubuntu 26.04 container
+      - name: Verify inside Ubuntu container
         env:
-          PLATFORM: ${{ matrix.platform }}
+          PLATFORM: ${{ matrix.name == 'x64' && 'linux/amd64' || 'linux/arm64' }}
+          IMAGE: ${{ matrix.image }}
+          DOVECOT_MAJOR: ${{ matrix.dovecot-major }}
         run: |
           docker run --rm --platform "$PLATFORM" \
-            -v "$PWD":/src -w /src ubuntu:26.04 \
+            -v "$PWD":/src -w /src "$IMAGE" \
             /bin/bash -eux -c '
             apt-get update
             apt-get install --yes build-essential cmake dovecot-core dovecot-dev lintian
             version=$(dovecot --version)
             version=${version%% *}
-            dpkg --compare-versions "$version" ge 2.4.2
+            if [ "$DOVECOT_MAJOR" = "2.4" ]; then
+              dpkg --compare-versions "$version" ge 2.4.2
+            else
+              dpkg --compare-versions "$version" ge 2.3.0
+              dpkg --compare-versions "$version" lt 2.4.0
+            fi
             cmake -S . -B build \
               -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_INSTALL_PREFIX=/usr \
-              -DXAPS_VERSION=0.0.0
+              -DXAPS_VERSION=0.0.0 \
+              -DXAPS_DOVECOT_MAJOR="$DOVECOT_MAJOR"
             cmake --build build --parallel
             cpack --config build/CPackConfig.cmake -G DEB -B dist
             package=$(find dist -maxdepth 1 -name '*.deb' -print -quit)
             test -n "$package"
             lintian --fail-on error "$package"
-            dpkg-deb --contents "$package" | grep -q lib25_xaps_imap_plugin.so
-            dpkg-deb --contents "$package" | grep -q lib25_xaps_push_notification_plugin.so
-            dpkg-deb --contents "$package" | grep -q libxaps_settings.so
             dpkg-deb --contents "$package" | grep -q 95-xaps.conf
+            if [ "$DOVECOT_MAJOR" = "2.4" ]; then
+              dpkg-deb --contents "$package" | grep -q lib25_xaps_imap_plugin.so
+              dpkg-deb --contents "$package" | grep -q lib25_xaps_push_notification_plugin.so
+              dpkg-deb --contents "$package" | grep -q libxaps_settings.so
+            else
+              dpkg-deb --contents "$package" | grep -q lib20_xaps_imap_plugin.so
+              dpkg-deb --contents "$package" | grep -q lib20_xaps_push_notification_plugin.so
+              ! dpkg-deb --contents "$package" | grep -q libxaps_settings.so
+            fi
             '

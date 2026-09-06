@@ -27,11 +27,12 @@
 #include <lib.h>
 #include <http-client.h>
 #include <http-url.h>
-#include <json-generator.h>
-#include <settings.h>
 #include <str.h>
 #include <strescape.h>
 #include <mail-storage-private.h>
+#ifdef XAPS_HAVE_SETTINGS_FRAMEWORK
+#include <settings.h>
+#endif
 
 #include <push-notification-plugin.h>
 #include <push-notification-drivers.h>
@@ -84,7 +85,7 @@ void xaps_init(struct mail_user *muser, const char *http_path, pool_t pPool ATTR
         xaps_global->pool = pool_alloconly_create("xaps config", 1024);
     }
 
-    if (xaps_settings_get(muser->event, &xaps_set, &error) < 0) {
+    if (xaps_settings_get(muser, &xaps_set, &error) < 0) {
         i_error("xaps: Failed to get settings: %s", error);
         /* Fail closed: if a config reload leaves xaps_url unset or settings
            retrieval broken, drop any cached endpoint so notifications and
@@ -115,7 +116,9 @@ void xaps_init(struct mail_user *muser, const char *http_path, pool_t pPool ATTR
                being misrouted to the old endpoint. */
             xaps_global->http_url = NULL;
             xaps_global->http_url_setting = NULL;
+#ifdef XAPS_HAVE_SETTINGS_FRAMEWORK
             settings_free(xaps_set);
+#endif
             return;
         }
         xaps_global->http_url = new_url;
@@ -139,13 +142,22 @@ void xaps_init(struct mail_user *muser, const char *http_path, pool_t pPool ATTR
                                             xaps_set->xaps_user_lookup);
     }
 
+#ifdef XAPS_HAVE_SETTINGS_FRAMEWORK
     settings_free(xaps_set);
+#endif
 
     if (xaps_global->http_client == NULL) {
+#ifdef XAPS_HAVE_HTTP_CLIENT_INIT_AUTO
         if (http_client_init_auto(muser->event, &xaps_global->http_client, &error) < 0) {
             i_error("xaps: Failed to initialize HTTP client: %s", error);
             return;
         }
+#else
+        struct http_client_settings http_set = {
+            .event_parent = muser->event,
+        };
+        xaps_global->http_client = http_client_init(&http_set);
+#endif
     }
 }
 

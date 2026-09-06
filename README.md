@@ -38,8 +38,11 @@ For Ubuntu and Debian systems, add the signed APT repository for the latest pack
 # Add the repository GPG key
 sudo curl -fsSL https://raw.githubusercontent.com/timlaing/dovecot-xaps-apt/main/public-key.asc -o /usr/share/keyrings/dovecot-xaps-archive-keyring.asc
 
-# Add the repository
+# Add the repository (pick the suite matching your Dovecot version)
+# Dovecot 2.4 (Ubuntu 26.04 and newer):
 echo "deb [signed-by=/usr/share/keyrings/dovecot-xaps-archive-keyring.asc] https://timlaing.github.io/dovecot-xaps-apt/ stable main" | sudo tee /etc/apt/sources.list.d/dovecot-xaps.list
+# Dovecot 2.3 (Ubuntu 24.04) instead:
+# echo "deb [signed-by=/usr/share/keyrings/dovecot-xaps-archive-keyring.asc] https://timlaing.github.io/dovecot-xaps-apt/ stable-dov23 main" | sudo tee /etc/apt/sources.list.d/dovecot-xaps.list
 
 # Update and install
 sudo apt-get update

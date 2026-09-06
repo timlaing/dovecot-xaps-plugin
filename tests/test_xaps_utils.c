@@ -531,14 +531,17 @@ static int test_settings_get_failure(void) {
     test_set_settings_get_fail(TRUE);
     test_reset_logs();
 
+    struct mail_user *u = make_user("testuser", NULL);
     const struct xaps_settings *set_r = NULL;
     const char *error_r = NULL;
-    int rc = xaps_settings_get(NULL, &set_r, &error_r);
+    int rc = xaps_settings_get(u, &set_r, &error_r);
 
     int ok = (rc == -1 && error_r != NULL);
     if (!ok)
         fprintf(stderr, "  FAIL: expected settings_get failure path\n");
 
+    i_free((char*)u->username);
+    i_free(u);
     test_set_settings_get_fail(FALSE);
     return ok;
 }

@@ -11,7 +11,8 @@ permissions:
 
 jobs:
   lint:
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
+    container: ubuntu:26.04
 
     steps:
       - name: Check out repository
@@ -19,8 +20,8 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes build-essential cmake dovecot-core dovecot-dev
+          apt-get update
+          apt-get install --yes build-essential cmake dovecot-core dovecot-dev
           dpkg --compare-versions "$(dovecot --version | awk '{print $1}')" ge 2.4.2
 
       - name: Configure with warnings as errors

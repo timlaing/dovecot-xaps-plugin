@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Debian package build and release automation for Dovecot 2.4.2.
 - Lint, package-validation, SonarQube Cloud, Dependabot, and Release Drafter automation.
 - Contribution, security, conduct, funding, issue, and pull-request community files.
+- Dovecot 2.3 support via `-DXAPS_DOVECOT_MAJOR=2.3`, which builds the `lib20_` modules, reads settings from the
+  `plugin { }` block, and produces `...-1~dov23` Debian packages on Ubuntu 24.04. Dovecot 2.4 remains the default.
 
 ### Changed
 
@@ -28,6 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Kept the parsed `xaps_url` in a plugin-owned pool so it outlives the transient transaction/command pool (use-after-free fix).
 - Copied the `aps-topic` returned by the daemon into the plugin pool instead of pointing into the response stream buffer.
 - Bounded `XAPPLEPUSHSERVICE` argument parsing so fewer than ten client arguments cannot cause out-of-bounds reads.
+- `enable_testing()` now runs at the top level, so the Dovecot-stub unit tests execute via `ctest` in CI.
 - Stopped logging device tokens and account IDs in the registration debug message.
 - Replaced assertions with graceful error handling so a missing `xaps_url` no longer aborts Dovecot.
 - Fixed a `string_t` leak on the registration error path.

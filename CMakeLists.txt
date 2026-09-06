@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 set(XAPS_VERSION "1.0.0" CACHE STRING "Version used for release packages")
 project(dovecot-xaps-plugin VERSION ${XAPS_VERSION} LANGUAGES C)
 
+# Select the Dovecot major version to build for (-DXAPS_DOVECOT_MAJOR=2.3).
+include(cmake/dovecot-port.cmake)
+
 if (APPLE)
     set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -Wl,-U,_client_read_args")
     set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -Wl,-U,_client_send_command_error")
@@ -33,25 +36,36 @@ endif ()
 
 include_directories(${DOVECOT_INCLUDE_DIR})
 
+foreach(XAPS_DEFINITION ${XAPS_COMPILE_DEFINITIONS})
+    add_definitions(-D${XAPS_DEFINITION})
+endforeach()
+
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-add_library(lib25_xaps_push_notification_plugin MODULE src/xaps-utils.c src/xaps-settings.c src/xaps-push-notification-plugin.c)
-add_library(lib25_xaps_imap_plugin MODULE src/xaps-utils.c src/xaps-settings.c src/xaps-imap-plugin.c)
-add_library(xaps_settings MODULE src/xaps-settings.c src/xaps-settings-plugin.c)
+set(XAPS_PUSH_MODULE "${XAPS_MODULE_PREFIX}_xaps_push_notification_plugin")
+set(XAPS_IMAP_MODULE "${XAPS_MODULE_PREFIX}_xaps_imap_plugin")
 
-target_link_libraries(lib25_xaps_push_notification_plugin ${LIBDOVECOT} ${LIBDOVECOTSTORAGE})
-target_link_libraries(lib25_xaps_imap_plugin ${LIBDOVECOT} ${LIBDOVECOTSTORAGE})
-target_link_libraries(xaps_settings ${LIBDOVECOT})
+add_library(${XAPS_PUSH_MODULE} MODULE src/xaps-utils.c src/xaps-settings.c src/xaps-push-notification-plugin.c)
+add_library(${XAPS_IMAP_MODULE} MODULE src/xaps-utils.c src/xaps-settings.c src/xaps-imap-plugin.c)
+if (XAPS_BUILD_SETTINGS_MODULE)
+    add_library(xaps_settings MODULE src/xaps-settings.c src/xaps-settings-plugin.c)
+    target_link_libraries(xaps_settings ${LIBDOVECOT})
+endif ()
 
-set_target_properties(lib25_xaps_push_notification_plugin PROPERTIES PREFIX "")
-set_target_properties(lib25_xaps_imap_plugin PROPERTIES PREFIX "")
+target_link_libraries(${XAPS_PUSH_MODULE} ${LIBDOVECOT} ${LIBDOVECOTSTORAGE})
+target_link_libraries(${XAPS_IMAP_MODULE} ${LIBDOVECOT} ${LIBDOVECOTSTORAGE})
 
-install(TARGETS lib25_xaps_push_notification_plugin DESTINATION /usr/lib/dovecot/modules)
-install(TARGETS lib25_xaps_imap_plugin DESTINATION /usr/lib/dovecot/modules)
-install(TARGETS xaps_settings DESTINATION /usr/lib/dovecot/modules/settings)
-install(FILES xaps.conf DESTINATION /etc/dovecot/conf.d RENAME 95-xaps.conf)
+set_target_properties(${XAPS_PUSH_MODULE} PROPERTIES PREFIX "")
+set_target_properties(${XAPS_IMAP_MODULE} PROPERTIES PREFIX "")
+
+install(TARGETS ${XAPS_PUSH_MODULE} DESTINATION /usr/lib/dovecot/modules)
+install(TARGETS ${XAPS_IMAP_MODULE} DESTINATION /usr/lib/dovecot/modules)
+if (XAPS_BUILD_SETTINGS_MODULE)
+    install(TARGETS xaps_settings DESTINATION /usr/lib/dovecot/modules/settings)
+endif ()
+install(FILES ${XAPS_CONF_SOURCE} DESTINATION /etc/dovecot/conf.d RENAME 95-xaps.conf)
 install(FILES LICENSE DESTINATION /usr/share/doc/dovecot-xaps-plugin RENAME copyright)
 install(FILES CHANGELOG.md DESTINATION /usr/share/doc/dovecot-xaps-plugin)
 
@@ -84,7 +98,7 @@ set(CPACK_DEBIAN_PACKAGE_DESCRIPTION
  forwarding mail events to the companion xapsd APNS daemon.")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/timlaing/dovecot-xaps-plugin")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-set(CPACK_DEBIAN_PACKAGE_VERSION "${PROJECT_VERSION}-1")
+set(CPACK_DEBIAN_PACKAGE_VERSION "${PROJECT_VERSION}-${XAPS_DEBIAN_REVISION}")
 set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
 set(CPACK_SET_DESTDIR ON)
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
@@ -94,13 +108,18 @@ if (NOT CPACK_DEBIAN_PACKAGE_ARCHITECTURE)
         OUTPUT_VARIABLE CPACK_DEBIAN_PACKAGE_ARCHITECTURE
         OUTPUT_STRIP_TRAILING_WHITESPACE)
 endif ()
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "dovecot-core (>= 2.4.0), xapsd, libc6")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "dovecot-core (>= ${XAPS_DEBIAN_CORE_DEP}), xapsd, libc6")
 set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
 set(CPACK_DEBIAN_PACKAGE_SECTION "mail")
 set(CPACK_STRIP_FILES TRUE)
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
     "${CMAKE_CURRENT_SOURCE_DIR}/packaging/conffiles")
 
-add_subdirectory(tests)
+# Unit tests use Dovecot stubs that mirror the forward (2.4+) API, so they
+# only build for settings-framework profiles.
+if (XAPS_BUILD_SETTINGS_MODULE)
+    enable_testing()
+    add_subdirectory(tests)
+endif ()
 
 include(CPack)

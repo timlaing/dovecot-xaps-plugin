@@ -26,7 +26,11 @@
 #ifndef XAPS_SETTINGS_H
 #define XAPS_SETTINGS_H
 
+#ifdef XAPS_HAVE_SETTINGS_FRAMEWORK
 #include <settings-parser.h>
+#endif
+
+struct mail_user;
 
 struct xaps_settings {
     pool_t pool;
@@ -34,9 +38,11 @@ struct xaps_settings {
     const char *xaps_user_lookup;
 };
 
+#ifdef XAPS_HAVE_SETTINGS_FRAMEWORK
 extern const struct setting_parser_info xaps_setting_parser_info;
+#endif
 
-int xaps_settings_get(struct event *event,
+int xaps_settings_get(struct mail_user *muser,
                       const struct xaps_settings **set_r,
                       const char **error_r);
 

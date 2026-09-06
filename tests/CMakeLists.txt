@@ -7,6 +7,15 @@ if(NOT PROJECT_NAME)
     project(xaps_tests C)
 endif()
 
+# Tests use Dovecot stubs that mirror the forward (2.4+) API. Select that
+# profile when configured standalone so the same feature macros are defined.
+if (NOT DEFINED XAPS_COMPILE_DEFINITIONS)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/dovecot-port.cmake)
+endif ()
+foreach(XAPS_DEFINITION ${XAPS_COMPILE_DEFINITIONS})
+    add_definitions(-D${XAPS_DEFINITION})
+endforeach()
+
 enable_testing()
 
 # Test sources (each produces its own test executable)

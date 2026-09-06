@@ -25,10 +25,18 @@
 
 #include <config.h>
 #include <lib.h>
+#include <mail-user.h>
+#ifdef XAPS_HAVE_SETTINGS_FRAMEWORK
 #include <settings.h>
 #include <settings-parser.h>
+#endif
 
 #include "xaps-settings.h"
+
+#ifdef XAPS_HAVE_SETTINGS_FRAMEWORK
+
+/* Dovecot 2.4+ settings-framework implementation. Settings are registered
+   with settings_info_register() and read through settings_get(). */
 
 #undef DEF
 #define DEF(type, name) \
@@ -57,11 +65,11 @@ const struct setting_parser_info xaps_setting_parser_info = {
     .pool_offset1 = 1 + offsetof(struct xaps_settings, pool),
 };
 
-int xaps_settings_get(struct event *event,
+int xaps_settings_get(struct mail_user *muser,
                       const struct xaps_settings **set_r,
                       const char **error_r)
 {
-    if (settings_get(event, &xaps_setting_parser_info, 0, set_r, error_r) < 0)
+    if (settings_get(muser->event, &xaps_setting_parser_info, 0, set_r, error_r) < 0)
         return -1;
 
     if (*(*set_r)->xaps_url == '\0') {
@@ -73,3 +81,30 @@ int xaps_settings_get(struct event *event,
 
     return 0;
 }
+
+#else
+
+/* Dovecot 2.3 implementation: settings live in the plugin {} block and are
+   read via mail_user_plugin_getenv(). The result is allocated from the data
+   stack and must not be passed to settings_free(). */
+
+int xaps_settings_get(struct mail_user *muser,
+                      const struct xaps_settings **set_r,
+                      const char **error_r)
+{
+    struct xaps_settings *set;
+
+    set = t_new(struct xaps_settings, 1);
+    set->xaps_url = mail_user_plugin_getenv(muser, "xaps_url");
+    set->xaps_user_lookup = mail_user_plugin_getenv(muser, "xaps_user_lookup");
+
+    if (set->xaps_url == NULL || *set->xaps_url == '\0') {
+        *error_r = "xaps_url is required";
+        return -1;
+    }
+
+    *set_r = set;
+    return 0;
+}
+
+#endif

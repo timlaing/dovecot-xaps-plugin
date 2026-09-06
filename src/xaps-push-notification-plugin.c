@@ -34,9 +34,11 @@
 #include <push-notification-event-messageappend.h>
 #include <http-client.h>
 #include <http-url.h>
-#include <json-generator.h>
+#ifdef XAPS_HAVE_SETTINGS_FRAMEWORK
 #include <settings.h>
+#endif
 
+#include "xaps-json.h"
 #include "xaps-push-notification-plugin.h"
 #include "xaps-settings.h"
 #include "xaps-utils.h"
@@ -67,7 +69,11 @@ static bool xaps_plugin_begin_txn(struct push_notification_driver_txn *dtxn) {
                             PUSH_NOTIFICATION_MESSAGE_HDR_TO |
                             PUSH_NOTIFICATION_MESSAGE_HDR_SUBJECT |
                             PUSH_NOTIFICATION_MESSAGE_BODY_SNIPPET;
-            push_notification_event_init(dtxn, "MessageNew", eventMessagenewConfig, dtxn->ptxn->event);
+            push_notification_event_init(dtxn, "MessageNew", eventMessagenewConfig
+#ifdef XAPS_HAVE_PUSH_EVENT_INIT_EVENT
+                                         , dtxn->ptxn->event
+#endif
+            );
         } else if (strcmp((*event)->name,"MessageAppend") == 0) {
             eventMessageappendConfig = p_new(dtxn->ptxn->pool, struct push_notification_event_messageappend_config, 1);
             // Take what you can, give nothing back
@@ -76,9 +82,17 @@ static bool xaps_plugin_begin_txn(struct push_notification_driver_txn *dtxn) {
                             PUSH_NOTIFICATION_MESSAGE_HDR_TO |
                             PUSH_NOTIFICATION_MESSAGE_HDR_SUBJECT |
                             PUSH_NOTIFICATION_MESSAGE_BODY_SNIPPET;
-            push_notification_event_init(dtxn, "MessageAppend", eventMessageappendConfig, dtxn->ptxn->event);
+            push_notification_event_init(dtxn, "MessageAppend", eventMessageappendConfig
+#ifdef XAPS_HAVE_PUSH_EVENT_INIT_EVENT
+                                         , dtxn->ptxn->event
+#endif
+            );
         } else {
-            push_notification_event_init(dtxn, (*event)->name, NULL, dtxn->ptxn->event);
+            push_notification_event_init(dtxn, (*event)->name, NULL
+#ifdef XAPS_HAVE_PUSH_EVENT_INIT_EVENT
+                                         , dtxn->ptxn->event
+#endif
+            );
         }
     }
     return TRUE;
@@ -179,6 +193,17 @@ int xaps_push_plugin_init(struct mail_user *muser ATTR_UNUSED,
     return 0;
 }
 
+#ifdef XAPS_LEGACY_DOVECOT
+int xaps_push_plugin_init_legacy(struct push_notification_driver_config *config ATTR_UNUSED,
+                       struct mail_user *muser ATTR_UNUSED,
+                       pool_t pPool ATTR_UNUSED,
+                       void **pVoid ATTR_UNUSED,
+                       const char **pString ATTR_UNUSED) {
+//    xaps_init(muser, "/notify", pPool);
+    return 0;
+}
+#endif
+
 void xaps_plugin_deinit(struct push_notification_driver_user *duser) {
     push_notification_driver_xaps_deinit(duser);
 }
@@ -190,7 +215,12 @@ void xaps_plugin_cleanup(void) {
 struct push_notification_driver push_notification_driver_xaps = {
         .name = "xaps",
         .v = {
-                .init = xaps_push_plugin_init,
+                .init =
+#ifdef XAPS_LEGACY_DOVECOT
+                    xaps_push_plugin_init_legacy,
+#else
+                    xaps_push_plugin_init,
+#endif
                 .begin_txn = xaps_plugin_begin_txn,
                 .process_msg = xaps_notify,
                 .deinit = xaps_plugin_deinit,
@@ -201,7 +231,9 @@ struct push_notification_driver push_notification_driver_xaps = {
 // plugin init and deinit
 
 void xaps_push_notification_plugin_init(struct module *module ATTR_UNUSED) {
+#ifdef XAPS_HAVE_SETTINGS_FRAMEWORK
     settings_info_register(&xaps_setting_parser_info);
+#endif
     push_notification_driver_register(&push_notification_driver_xaps);
 }
 

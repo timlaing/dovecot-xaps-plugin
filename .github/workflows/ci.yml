@@ -9,29 +9,34 @@ permissions:
 
 jobs:
   build:
-    name: Build ${{ matrix.arch }}
-    runs-on: ubuntu-26.04
+    name: Build dovecot-${{ matrix.dovecot-major }} ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    container: ${{ matrix.dovecot-major == '2.4' && 'ubuntu:26.04' || 'ubuntu:24.04' }}
     strategy:
       matrix:
         arch: [amd64, arm64]
+        dovecot-major: [2.4, 2.3]
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
 
-      - name: Install build dependencies
+      - name: Install build dependencies (inside container)
         run: |
-          sudo dpkg --add-architecture ${{ matrix.arch }}
-          sudo apt-get update
-          sudo apt-get install --yes build-essential cmake lintian
-          sudo apt-get install --yes dovecot-core:${{ matrix.arch }} dovecot-dev:${{ matrix.arch }}
-          if [ "${{ matrix.arch }}" = "amd64" ]; then
+          dpkg --add-architecture ${{ matrix.arch }}
+          apt-get update
+          apt-get install --yes build-essential cmake lintian
+          apt-get install --yes dovecot-core:${{ matrix.arch }} dovecot-dev:${{ matrix.arch }}
+          if [ "${{ matrix.dovecot-major }}" = "2.4" ]; then
             dpkg --compare-versions "$(dovecot --version | awk '{print $1}')" ge 2.4.0
+          else
+            dpkg --compare-versions "$(dovecot --version | awk '{print $1}')" ge 2.3.0
+            dpkg --compare-versions "$(dovecot --version | awk '{print $1}')" lt 2.4.0
           fi
 
       - name: Install cross-compiler
         if: matrix.arch == 'arm64'
-        run: sudo apt-get install --yes gcc-aarch64-linux-gnu
+        run: apt-get install --yes gcc-aarch64-linux-gnu
 
       - name: Configure
         run: >-
@@ -39,11 +44,16 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_INSTALL_PREFIX=/usr
           -DXAPS_VERSION=0.0.0
+          -DXAPS_DOVECOT_MAJOR=${{ matrix.dovecot-major }}
           -DCPACK_DEBIAN_PACKAGE_ARCHITECTURE=${{ matrix.arch }}
           ${{ matrix.arch == 'arm64' && '-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc' || '' }}
 
       - name: Build
         run: cmake --build build --parallel
+
+      - name: Run unit tests
+        if: matrix.arch == 'amd64' && matrix.dovecot-major == '2.4'
+        run: ctest --test-dir build --output-on-failure
 
       - name: Build Debian package
         run: cpack --config build/CPackConfig.cmake -G DEB -B dist
@@ -58,7 +68,7 @@ jobs:
           lintian --fail-on error "$package"
 
       - name: Validate package contents (amd64 only)
-        if: matrix.arch == 'amd64'
+        if: matrix.arch == 'amd64' && matrix.dovecot-major == '2.4'
         shell: bash
         run: |
           package=$(find dist -maxdepth 1 -name '*.deb' -print -quit)
@@ -66,3 +76,15 @@ jobs:
           dpkg-deb --contents "$package" | grep -q lib25_xaps_push_notification_plugin.so
           dpkg-deb --contents "$package" | grep -q libxaps_settings.so
           dpkg-deb --contents "$package" | grep -q 95-xaps.conf
+
+      - name: Validate package contents (amd64 only)
+        if: matrix.arch == 'amd64' && matrix.dovecot-major == '2.3'
+        shell: bash
+        run: |
+          package=$(find dist -maxdepth 1 -name '*.deb' -print -quit)
+          dpkg-deb --contents "$package" | grep -q lib20_xaps_imap_plugin.so
+          dpkg-deb --contents "$package" | grep -q lib20_xaps_push_notification_plugin.so
+          dpkg-deb --contents "$package" | grep -q 95-xaps.conf
+          ! dpkg-deb --contents "$package" | grep -q libxaps_settings.so
+          dpkg-deb --field "$package" Package | grep -q dovecot-xaps-plugin
+          dpkg-deb --field "$package" Version | grep -q '1~dov23$'

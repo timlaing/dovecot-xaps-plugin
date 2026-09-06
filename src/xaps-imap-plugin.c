@@ -25,14 +25,16 @@
 
 #include <config.h>
 #include <lib.h>
+#include <http-client.h>
+#include <http-url.h>
 #include <str.h>
 #include <imap-common.h>
 #include <imap-quote.h>
-#include <http-client.h>
-#include <http-url.h>
-#include <json-generator.h>
+#ifdef XAPS_HAVE_SETTINGS_FRAMEWORK
 #include <settings.h>
+#endif
 
+#include "xaps-json.h"
 #include "xaps-imap-plugin.h"
 #include "xaps-settings.h"
 #include "xaps-utils.h"
@@ -435,7 +437,9 @@ static void xaps_client_created(struct client **client) {
  */
 
 void xaps_imap_plugin_init(struct module *module) {
+#ifdef XAPS_HAVE_SETTINGS_FRAMEWORK
     settings_info_register(&xaps_setting_parser_info);
+#endif
     command_register("XAPPLEPUSHSERVICE", cmd_xapplepushservice, 0);
     xaps_imap_module = module;
     next_hook_client_created = imap_client_created_hook_set(xaps_client_created);
