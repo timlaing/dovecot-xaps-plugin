@@ -35,6 +35,13 @@ jobs:
       - name: Install build dependencies (inside container)
         run: |
           dpkg --add-architecture ${{ matrix.arch }}
+          if [ "${{ matrix.arch }}" = "arm64" ] && [ "${{ matrix.dovecot-major }}" = "2.3" ]; then
+            # Ubuntu 24.04 publishes arm64 indexes only on ports.ubuntu.com.
+            # Restrict the default archive/security stanzas to amd64 and add
+            # an arm64-only ports mirror so dovecot-core/dev:arm64 resolve.
+            sed -i '/^URIs:/a\Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources
+            printf 'Types: deb\nURIs: http://ports.ubuntu.com/ubuntu-ports/\nSuites: noble noble-updates noble-backports noble-security\nComponents: main universe restricted multiverse\nArchitectures: arm64\n' > /etc/apt/sources.list.d/ports.sources
+          fi
           apt-get update
           apt-get install --yes build-essential cmake lintian
           apt-get install --yes dovecot-core:${{ matrix.arch }} dovecot-dev:${{ matrix.arch }}
