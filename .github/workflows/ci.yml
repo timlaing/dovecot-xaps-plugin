@@ -35,6 +35,7 @@ jobs:
           apt-get install --yes build-essential cmake lintian
           apt-get install --yes dovecot-core:${{ matrix.arch }} dovecot-dev:${{ matrix.arch }}
           dovecot_version=$(dpkg-query -W -f='${Version}' dovecot-core)
+          dovecot_version=${dovecot_version#*:}
           if [ "${{ matrix.dovecot-major }}" = "2.4" ]; then
             dpkg --compare-versions "$dovecot_version" ge 2.4.0
           else
