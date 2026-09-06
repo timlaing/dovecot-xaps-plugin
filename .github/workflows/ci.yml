@@ -63,13 +63,18 @@ jobs:
         run: ctest --test-dir build --output-on-failure
 
       - name: Build Debian package
-        run: cpack --config build/CPackConfig.cmake -G DEB -B dist
+        run: |
+          chmod 0644 packaging/conffiles
+          cpack --config build/CPackConfig.cmake -G DEB -B dist
 
       - name: Inspect Debian package
         shell: bash
         run: |
           package=$(find dist -maxdepth 1 -name '*.deb' -print -quit)
           test -n "$package"
+          echo "source conffiles mode: $(stat -c '%a' packaging/conffiles)"
+          dpkg-deb --ctrl-tarfile "$package" > /tmp/control.tar
+          echo "package conffiles mode: $(tar tvf /tmp/control.tar | grep conffiles)"
           dpkg-deb --info "$package"
           dpkg-deb --contents "$package"
           lintian --fail-on error "$package"
