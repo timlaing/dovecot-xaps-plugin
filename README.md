@@ -7,9 +7,9 @@ iOS Push Email plugin for Dovecot
 [![Release](https://img.shields.io/github/v/release/timlaing/dovecot-xaps-plugin)](https://github.com/timlaing/dovecot-xaps-plugin/releases)
 [![License](https://img.shields.io/github/license/timlaing/dovecot-xaps-plugin)](LICENSE)
 
-This project provides Dovecot 2.4.x plugins for the `XAPPLEPUSHSERVICE` IMAP extension and mail-event notifications.
-It works with [dovecot-xaps-daemon](https://github.com/timlaing/dovecot-xaps-daemon) to deliver native Apple Push
-Notification Service (APNS) notifications for iOS Mail.
+This project provides Dovecot 2.4.x and Dovecot 2.3.x plugins for the `XAPPLEPUSHSERVICE` IMAP extension and
+mail-event notifications. It works with [dovecot-xaps-daemon](https://github.com/timlaing/dovecot-xaps-daemon) to
+deliver native Apple Push Notification Service (APNS) notifications for iOS Mail.
 
 Both components are required:
 
@@ -25,7 +25,7 @@ Installation
 Prerequisites
 -------------
 
-* A working Dovecot 2.4.2 or newer installation.
+* A working Dovecot installation. Releases provide packages for both the Dovecot 2.4.x and 2.3.x series.
 * Mail delivery through Dovecot LDA or LMTP.
 * A running [dovecot-xaps-daemon](https://github.com/timlaing/dovecot-xaps-daemon).
 
@@ -36,10 +36,10 @@ For Ubuntu and Debian systems, add the signed APT repository for the latest pack
 
 ```sh
 # Add the repository GPG key
-sudo curl -fsSL https://github.com/timlaing/dovecot-xaps-apt/raw/main/KEY.gpg | sudo tee /etc/apt/trusted.gpg.d/dovecot-xaps.asc >/dev/null
+sudo curl -fsSL https://raw.githubusercontent.com/timlaing/dovecot-xaps-apt/main/public-key.asc -o /usr/share/keyrings/dovecot-xaps-archive-keyring.asc
 
 # Add the repository
-echo "deb [signed-by=/etc/apt/trusted.gpg.d/dovecot-xaps.asc] https://timlaing.github.io/dovecot-xaps-apt/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/dovecot-xaps.list
+echo "deb [signed-by=/usr/share/keyrings/dovecot-xaps-archive-keyring.asc] https://timlaing.github.io/dovecot-xaps-apt/ stable main" | sudo tee /etc/apt/sources.list.d/dovecot-xaps.list
 
 # Update and install
 sudo apt-get update
@@ -51,18 +51,23 @@ See [timlaing/dovecot-xaps-apt](https://github.com/timlaing/dovecot-xaps-apt) fo
 Debian package
 --------------
 
-Tagged releases include a Debian package built against Dovecot 2.4.2. Download the package from this repository's
+Tagged releases include a Debian package built against Dovecot 2.4 (Ubuntu 26.04, `...-1`) and against Dovecot 2.3
+(Ubuntu 24.04, `...-1~dov23`). Download the package matching your Dovecot version from this repository's
 [Releases](https://github.com/timlaing/dovecot-xaps-plugin/releases) page and install it with APT:
 
 ```sh
 sudo apt install ./dovecot-xaps-plugin_<version>_<architecture>.deb
 ```
 
-The package installs:
+The Dovecot 2.4 package installs:
 
 * Mail plugins in `/usr/lib/dovecot/modules/`.
 * The settings module in `/usr/lib/dovecot/modules/settings/`.
 * Dovecot configuration in `/etc/dovecot/conf.d/95-xaps.conf`.
+
+The Dovecot 2.3 package installs the same files except the settings module (Dovecot 2.3 reads plugin settings from the
+`plugin { }` block instead). The two packages cannot be installed side by side because their `dovecot-core` major
+versions conflict.
 
 The default daemon endpoint is the IPv6 loopback listener used by xapsd:
 
@@ -80,19 +85,28 @@ sudo systemctl restart dovecot
 Build from source
 -----------------
 
-On Ubuntu 26.04 LTS:
+On Ubuntu 26.04 LTS (Dovecot 2.4, default) or Ubuntu 24.04 LTS (Dovecot 2.3):
 
 ```sh
 sudo apt-get update
 sudo apt-get install build-essential git dovecot-dev cmake
 git clone https://github.com/timlaing/dovecot-xaps-plugin.git
 cd dovecot-xaps-plugin
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+# Omit -DXAPS_DOVECOT_MAJOR to build for Dovecot 2.4 (default).
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
+  -DXAPS_DOVECOT_MAJOR=2.3
 cmake --build build --parallel
 sudo cmake --install build
 sudo doveconf -n
 sudo systemctl restart dovecot
 ```
+
+`-DXAPS_DOVECOT_MAJOR=2.4` builds the Dovecot 2.4 modules (`lib25_` prefix, settings module, config-section based
+push-notification driver). `-DXAPS_DOVECOT_MAJOR=2.3` builds Dovecot 2.3 modules (`lib20_` prefix, plugin-block based
+settings) and installs the `packaging/xaps-23.conf` template as `95-xaps.conf`.
+
+All CI builds and tests run inside the official Ubuntu Docker containers matching each Dovecot major (`ubuntu:26.04` for
+2.4, `ubuntu:24.04` for 2.3); nothing is built on the CI host itself.
 
 The installation paths currently target Debian and Ubuntu's Dovecot module layout under `/usr/lib/dovecot/modules`.
 
@@ -100,9 +114,7 @@ Testing
 -------
 
 The test suite builds a standalone test binary for each plugin module using lightweight Dovecot stubs, so it does not
-require a running Dovecot installation.
-
-Run it in an Ubuntu 26.04 container on either architecture (x64 / arm64):
+require a running Dovecot installation. In CI it runs inside Ubuntu containers; locally you can replicate it in one:
 
 ```sh
 docker run --rm --platform linux/amd64 \
@@ -114,8 +126,8 @@ docker run --rm --platform linux/amd64 \
 '
 ```
 
-The same verification (plugin build, Debian package, lintian) runs on both x64 and
-arm64 in the `Test` workflow by switching the platform:
+The same verification (plugin build, Debian package, lintian) runs on both x64 and arm64 — for Dovecot 2.4 inside
+`ubuntu:26.04` and for Dovecot 2.3 inside `ubuntu:24.04` — in the `Test` workflow by switching the platform:
 
 ```sh
 docker run --rm --platform linux/arm64 -v "$PWD":/src -w /src ubuntu:26.04 bash -c '...'
@@ -136,13 +148,31 @@ Build a Debian package
 cmake -S . -B build \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
-  -DXAPS_VERSION=1.0.0
+  -DXAPS_VERSION=1.0.0 \
+  -DXAPS_DOVECOT_MAJOR=2.3
 cmake --build build --parallel
 cpack --config build/CPackConfig.cmake -G DEB -B dist
 ```
 
-CI builds and validates the package on Ubuntu 26.04 LTS. Pushing a stable tag such as `v1.1.0` builds the Debian
-package and attaches it to the corresponding GitHub release.
+`-DXAPS_DOVECOT_MAJOR=2.4` (default) produces `dovecot-xaps-plugin_<version>-1_<arch>.deb`; `=2.3` produces
+`dovecot-xaps-plugin_<version>-1~dov23_<arch>.deb` so the two builds never collide.
+
+Or build the package entirely inside the matching Ubuntu Docker container, exactly as CI does:
+
+```sh
+docker run --rm --platform linux/amd64 \
+  -v "$PWD":/src -w /src ubuntu:24.04 bash -c '
+  apt-get update && apt-get install --yes build-essential cmake dovecot-core dovecot-dev lintian
+  cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
+    -DXAPS_VERSION=1.0.0 -DXAPS_DOVECOT_MAJOR=2.3
+  cmake --build build --parallel
+  cpack --config build/CPackConfig.cmake -G DEB -B dist
+'
+```
+
+CI builds and validates both Dovecot major versions in containers: the 2.4 package inside `ubuntu:26.04`, the 2.3
+package inside `ubuntu:24.04`. Pushing a stable tag such as `v1.1.0` builds the Debian packages in the same containers
+and attaches them to the corresponding GitHub release.
 
 Troubleshooting
 ===============
