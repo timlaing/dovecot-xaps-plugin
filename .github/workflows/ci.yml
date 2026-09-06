@@ -34,11 +34,12 @@ jobs:
           apt-get update
           apt-get install --yes build-essential cmake lintian
           apt-get install --yes dovecot-core:${{ matrix.arch }} dovecot-dev:${{ matrix.arch }}
+          dovecot_version=$(dpkg-query -W -f='${Version}' dovecot-core)
           if [ "${{ matrix.dovecot-major }}" = "2.4" ]; then
-            dpkg --compare-versions "$(dovecot --version | awk '{print $1}')" ge 2.4.0
+            dpkg --compare-versions "$dovecot_version" ge 2.4.0
           else
-            dpkg --compare-versions "$(dovecot --version | awk '{print $1}')" ge 2.3.0
-            dpkg --compare-versions "$(dovecot --version | awk '{print $1}')" lt 2.4.0
+            dpkg --compare-versions "$dovecot_version" ge 2.3.0
+            dpkg --compare-versions "$dovecot_version" lt 2.4.0
           fi
 
       - name: Install cross-compiler
