@@ -36,4 +36,5 @@ Report checks as pass, fail, or not run. Do not imply macOS compilation proves D
 - Keep review findings scoped to the requested diff and rank real defects P0–P3.
 - Preserve administrator-owned conffiles during package upgrades.
 - Keep lint, tests, SonarCloud, Release Drafter, and release automation as separate workflows.
+- Reference GitHub Actions by version tag (for example `actions/checkout@v7.0.1`), not by commit SHA, and keep every reference to the same action on one tag.
 - Do not commit, push, create releases, or merge without explicit authorization.

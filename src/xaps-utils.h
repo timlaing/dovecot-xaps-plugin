@@ -35,7 +35,7 @@
 
 #define XAPS_LOG_LABEL "XAPS Push Notification: "
 
-const char *get_real_mbox_user(struct mail_user *muser);
+const char *get_real_mbox_user(const struct mail_user *muser);
 
 /* This is data that is shared by all plugin users. */
 struct xaps_config {

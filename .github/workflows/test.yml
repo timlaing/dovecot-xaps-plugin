@@ -39,6 +39,7 @@ jobs:
           DOVECOT_MAJOR: ${{ matrix.dovecot-major }}
         run: |
           docker run --rm --platform "$PLATFORM" \
+            -e DOVECOT_MAJOR="$DOVECOT_MAJOR" \
             -v "$PWD":/src -w /src "$IMAGE" \
             /bin/bash -eux -c '
             apt-get update

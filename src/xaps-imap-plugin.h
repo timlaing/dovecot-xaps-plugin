@@ -29,7 +29,10 @@
 struct module;
 
 struct xaps_attr {
-    const char *aps_version, *aps_account_id, *aps_device_token, *aps_subtopic;
+    const char *aps_version;
+    const char *aps_account_id;
+    const char *aps_device_token;
+    const char *aps_subtopic;
     const struct imap_arg *mailboxes;
     const char *dovecot_username;
 };
