@@ -39,4 +39,5 @@ Report checks as pass, fail, or not run. Do not imply macOS compilation proves D
 - Reference GitHub Actions by version tag (for example `actions/checkout@v7.0.1`), not by commit SHA, and keep every reference to the same action on one tag.
 - Update `CHANGELOG.md` under the "Unreleased" section for every PR with a user-facing or behavior change (Added/Changed/Fixed/Removed/Deprecated/Security). Include a concise entry and reference the PR number. Do not update `CHANGELOG.md` for purely internal/CI/tooling changes unless they affect users or packaging.
 - When adding words to cspell dictionaries (e.g., `.vscode/cspell.json`), ensure words are in lowercase and in alphabetical order.
+- Never bypass commit checks (e.g., `git commit --no-verify`). All pre-commit hooks must pass locally before committing changes. If a hook fails due to false positives, fix the configuration or the files properly — do not skip the checks. Only bypass checks with explicit case-by-case approval from the user.
 - Do not commit, push, create releases, or merge without explicit authorization.
