@@ -34,3 +34,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Stopped logging device tokens and account IDs in the registration debug message.
 - Replaced assertions with graceful error handling so a missing `xaps_url` no longer aborts Dovecot.
 - Fixed a `string_t` leak on the registration error path.
+- Improved const-correctness in `xaps_notify` by taking the message parameter as `const struct push_notification_txn_msg *`.
+- Minor code quality improvement in HTTP client initialization.
