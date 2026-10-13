@@ -387,7 +387,7 @@ struct push_notification_driver {
         int (*init)(struct mail_user *, pool_t, const char *, void **, const char **);
         bool (*begin_txn)(struct push_notification_driver_txn *);
         void (*process_msg)(struct push_notification_driver_txn *,
-                            const struct push_notification_txn_msg *);
+                            struct push_notification_txn_msg *);
         void (*deinit)(struct push_notification_driver_user *);
         void (*cleanup)(void);
     } v;

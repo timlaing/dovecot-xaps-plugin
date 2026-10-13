@@ -105,7 +105,7 @@ static bool xaps_plugin_begin_txn(struct push_notification_driver_txn *dtxn) {
  * posted. The daemon can then lookup the user and see if any of the
  * devices want to receive a notification for that mailbox.
  */
-static void xaps_notify(struct push_notification_driver_txn *dtxn, const struct push_notification_txn_msg *msg) {
+static void xaps_notify(struct push_notification_driver_txn *dtxn, struct push_notification_txn_msg *msg) {
     struct push_notification_txn_event *const *event;
     struct http_client_request *http_req;
     string_t *str;
