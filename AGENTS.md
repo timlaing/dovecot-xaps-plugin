@@ -40,4 +40,6 @@ Report checks as pass, fail, or not run. Do not imply macOS compilation proves D
 - Update `CHANGELOG.md` under the "Unreleased" section for every PR with a user-facing or behavior change (Added/Changed/Fixed/Removed/Deprecated/Security). Include a concise entry and reference the PR number. Do not update `CHANGELOG.md` for purely internal/CI/tooling changes unless they affect users or packaging.
 - When adding words to cspell dictionaries (e.g., `.vscode/cspell.json`), ensure words are in lowercase and in alphabetical order.
 - Never bypass commit checks (e.g., `git commit --no-verify`). All pre-commit hooks must pass locally before committing changes. If a hook fails due to false positives, fix the configuration or the files properly — do not skip the checks. Only bypass checks with explicit case-by-case approval from the user.
+- To release, rename the `[Unreleased]` heading to `[VERSION] - YYYY-MM-DD`; leave no empty `[Unreleased]` section behind, and do not add a comparison-links footer.
+- Cut the release by publishing the draft release that Release Drafter maintains (`.github/workflows/release-drafter.yml`): set its tag and title to the version matching the `CHANGELOG.md` heading and publish it.
 - Do not commit, push, create releases, or merge without explicit authorization.
