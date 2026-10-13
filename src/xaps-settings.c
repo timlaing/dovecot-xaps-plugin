@@ -38,7 +38,6 @@
 /* Dovecot 2.4+ settings-framework implementation. Settings are registered
    with settings_info_register() and read through settings_get(). */
 
-#undef DEF
 #define DEF(type, name) \
     SETTING_DEFINE_STRUCT_##type("xaps_"#name, xaps_##name, struct xaps_settings)
 

@@ -160,21 +160,15 @@ static void xaps_notify(struct push_notification_driver_txn *dtxn, struct push_n
     i_stream_unref(&payload);
 }
 
-void push_notification_driver_xaps_http_callback(const struct http_response *response, void *context) {
-    switch (response->status / 100) {
-        case 2:
-            // Success.
-            i_debug("Notification sent successfully: %s", http_response_get_message(response));
-            break;
-
-        default:
-            if (response->status == 404) {
-                i_debug("Notification sent successfully, but no registered device found: %s", http_response_get_message(response));
-            } else {
-                // Error.
-                i_error("Error when sending notification: %s", http_response_get_message(response));
-            }
-            break;
+void push_notification_driver_xaps_http_callback(const struct http_response *response, void *context ATTR_UNUSED) {
+    if (response->status / 100 == 2) {
+        // Success.
+        i_debug("Notification sent successfully: %s", http_response_get_message(response));
+    } else if (response->status == 404) {
+        i_debug("Notification sent successfully, but no registered device found: %s", http_response_get_message(response));
+    } else {
+        // Error.
+        i_error("Error when sending notification: %s", http_response_get_message(response));
     }
 }
 
@@ -189,7 +183,6 @@ int xaps_push_plugin_init(struct mail_user *muser ATTR_UNUSED,
                  const char *name ATTR_UNUSED,
                  void **pVoid ATTR_UNUSED,
                  const char **pString ATTR_UNUSED) {
-//    xaps_init(muser, "/notify", pPool);
     return 0;
 }
 
@@ -199,7 +192,6 @@ int xaps_push_plugin_init_legacy(struct push_notification_driver_config *config 
                        pool_t pPool ATTR_UNUSED,
                        void **pVoid ATTR_UNUSED,
                        const char **pString ATTR_UNUSED) {
-//    xaps_init(muser, "/notify", pPool);
     return 0;
 }
 #endif

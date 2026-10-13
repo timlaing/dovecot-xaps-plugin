@@ -37,6 +37,10 @@ const struct setting_parser_info *xaps_settings_set_infos[] = {
 
 void xaps_settings_init(void)
 {
+    /* Intentionally empty: this module only exports the parser info, the
+       set_infos table, and DOVECOT_ABI_VERSION above. Dovecot's settings
+       loader consumes those symbols directly, so there is no module-local
+       state to initialize here. */
 }
 
 const char *xaps_settings_version = DOVECOT_ABI_VERSION;

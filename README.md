@@ -25,9 +25,9 @@ Installation
 Prerequisites
 -------------
 
-* A working Dovecot installation. Releases provide packages for both the Dovecot 2.4.x and 2.3.x series.
-* Mail delivery through Dovecot LDA or LMTP.
-* A running [dovecot-xaps-daemon](https://github.com/timlaing/dovecot-xaps-daemon).
+- A working Dovecot installation. Releases provide packages for both the Dovecot 2.4.x and 2.3.x series.
+- Mail delivery through Dovecot LDA or LMTP.
+- A running [dovecot-xaps-daemon](https://github.com/timlaing/dovecot-xaps-daemon).
 
 APT repository
 --------------
@@ -64,9 +64,9 @@ sudo apt install ./dovecot-xaps-plugin_<version>_<architecture>.deb
 
 The Dovecot 2.4 package installs:
 
-* Mail plugins in `/usr/lib/dovecot/modules/`.
-* The settings module in `/usr/lib/dovecot/modules/settings/`.
-* Dovecot configuration in `/etc/dovecot/conf.d/95-xaps.conf`.
+- Mail plugins in `/usr/lib/dovecot/modules/`.
+- The settings module in `/usr/lib/dovecot/modules/settings/`.
+- Dovecot configuration in `/etc/dovecot/conf.d/95-xaps.conf`.
 
 The Dovecot 2.3 package installs the same files except the settings module (Dovecot 2.3 reads plugin settings from the
 `plugin { }` block instead). The two packages cannot be installed side by side because their `dovecot-core` major

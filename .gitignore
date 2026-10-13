@@ -2,12 +2,18 @@
 .env
 .DS_Store
 .devcontainer/
-.vscode/
+.vscode/*
+!.vscode/cspell.json
+!.vscode/settings.json
 Dockerfile.verify
 build-test/
 build-cov/
 gcov/
 coverage/
+
+### Python
+__pycache__/
+*.py[cod]
 
 ### CMake template
 CMakeCache.txt
@@ -170,3 +176,9 @@ fabric.properties
 
 # Editor-based Rest Client
 .idea/httpRequests
+.opencode
+node_modules/
+
+node_modules/
+dist*/
+.venv/

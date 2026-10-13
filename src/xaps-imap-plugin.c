@@ -75,7 +75,8 @@ static bool parse_xapplepush(struct client_command_context *cmd, struct xaps_att
     */
 
     const struct imap_arg *args;
-    const char *arg_key, *arg_val;
+    const char *arg_key;
+    const char *arg_val;
     unsigned int nargs = 0;
 
     i_assert(xaps_attr != NULL);
@@ -128,11 +129,10 @@ static bool parse_xapplepush(struct client_command_context *cmd, struct xaps_att
             xaps_attr->aps_device_token = arg_val;
         } else if (strcasecmp(arg_key, "aps-subtopic") == 0) {
             xaps_attr->aps_subtopic = arg_val;
-        } else if (strcasecmp(arg_key, "mailboxes") == 0) {
-            if (!imap_arg_get_list(&args[i * 2 + 1], &(xaps_attr->mailboxes))) {
-                client_send_command_error(cmd, "Invalid arguments.");
-                return FALSE;
-            }
+        } else if (strcasecmp(arg_key, "mailboxes") == 0 &&
+                   !imap_arg_get_list(&args[i * 2 + 1], &(xaps_attr->mailboxes))) {
+            client_send_command_error(cmd, "Invalid arguments.");
+            return FALSE;
         }
     }
 
@@ -176,7 +176,7 @@ static bool parse_xapplepush(struct client_command_context *cmd, struct xaps_att
  * Send a registration request to the daemon, which will do all the
  * hard work.
  */
-int xaps_register(struct client_command_context *cmd, struct xaps_attr *xaps_attr) {
+int xaps_register(struct client_command_context *cmd, const struct xaps_attr *xaps_attr) {
     struct http_client_request *http_req;
     struct istream *payload;
     string_t *str;
@@ -242,7 +242,7 @@ int xaps_register(struct client_command_context *cmd, struct xaps_attr *xaps_att
 /*
  * Register the client at the xapsd
  */
-static bool register_client(struct client_command_context *cmd, struct xaps_attr *xaps_attr) {
+static bool register_client(struct client_command_context *cmd, const struct xaps_attr *xaps_attr) {
     /*
     * Forward to the helper daemon. The helper will return the
     * aps-topic, which in reality is the subject of the certificate.
@@ -377,37 +377,36 @@ static const char *xaps_payload_str(pool_t dest_pool, struct istream *payload,
 }
 
 void xaps_register_callback(const struct http_response *response, void *context ATTR_UNUSED) {
+    const char *topic;
+    const char *error;
+
     if (xaps_global == NULL)
         return;
 
-    switch (response->status / 100) {
-        case 2: {
-            const char *topic, *error;
-            if (xaps_global->pool == NULL) {
-                i_error("xaps: no config pool; cannot persist aps-topic");
-                /* Fail closed so a partially-initialized config cannot
-                   reuse a stale topic. */
-                xaps_global->aps_topic = NULL;
-                break;
-            }
-            topic = xaps_payload_str(xaps_global->pool, response->payload,
-                                     xaps_global->aps_topic, &error);
-            if (topic == NULL) {
-                i_error("xaps: failed to read aps-topic from server: %s", error);
-                /* Clear any topic from an earlier registration so a
-                   failed re-registration cannot reuse a stale value. */
-                xaps_global->aps_topic = NULL;
-            } else {
-                xaps_global->aps_topic = (const unsigned char *)topic;
-            }
-            break;
-        }
+    if (response->status / 100 != 2) {
+        // Error.
+        i_error("Error when sending registration: %s", http_response_get_message(response));
+        xaps_global->aps_topic = NULL;
+        return;
+    }
 
-        default:
-            // Error.
-            i_error("Error when sending registration: %s", http_response_get_message(response));
-            xaps_global->aps_topic = NULL;
-            break;
+    if (xaps_global->pool == NULL) {
+        i_error("xaps: no config pool; cannot persist aps-topic");
+        /* Fail closed so a partially-initialized config cannot
+           reuse a stale topic. */
+        xaps_global->aps_topic = NULL;
+        return;
+    }
+
+    topic = xaps_payload_str(xaps_global->pool, response->payload,
+                             xaps_global->aps_topic, &error);
+    if (topic == NULL) {
+        i_error("xaps: failed to read aps-topic from server: %s", error);
+        /* Clear any topic from an earlier registration so a
+           failed re-registration cannot reuse a stale value. */
+        xaps_global->aps_topic = NULL;
+    } else {
+        xaps_global->aps_topic = (const unsigned char *)topic;
     }
 }
 

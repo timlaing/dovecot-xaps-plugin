@@ -19,19 +19,25 @@ SRC_FILES = [
     "xaps-imap-plugin.c",
 ]
 
-LINE_RE = re.compile(r"^(\s*(-|\$+|\d+\*?|#####|=====)):\s*(\d+):(.*)$")
-FUNC_RE = re.compile(r"^\s*function\s+(.+?)\s+called\s+(\d+)")
+# Suffix of the gcov report files produced for each source.
+GCOV_SUFFIX = ".gcov"
+
+LINE_RE = re.compile(r"^([ \t]*(-|\$+|\d+\*?|#####|=====)):[ \t]*(\d+):(.*)$")
+FUNC_RE = re.compile(r"^[ \t]*function[ \t]+(.+?)[ \t]+called[ \t]+(\d+)")
 #  branch 0 taken 3 (fallthrough) / branch 0 never executed
-BRANCH_RE = re.compile(r"^\s*branch\s+(\d+)\s+(taken\s+(\d+)|never executed)\s*(.*)$")
+BRANCH_RE = re.compile(
+    r"^[ \t]*branch[ \t]+(\d+)[ \t]+(taken[ \t]+(\d+)|never executed)[ \t]*(.*)$"
+)
 
 
 class Gcov:
     base: "Gcov"  # set by merge_copies()
+
     def __init__(self):
-        self.raw = []          # (count_str, lineno, text) for every line
-        self.lines = {}        # lineno -> [covered, max_count]
-        self.branches = {}     # lineno -> [covered, ...] (one bool per branch)
-        self.funcs = {}        # name -> called count
+        self.raw = []  # (count_str, lineno, text) for every line
+        self.lines = {}  # lineno -> [covered, max_count]
+        self.branches = {}  # lineno -> [covered, ...] (one bool per branch)
+        self.funcs = {}  # name -> called count
         self.cur_line = None
 
     @staticmethod
@@ -42,8 +48,9 @@ class Gcov:
                 line = raw.rstrip("\n")
                 m = FUNC_RE.match(line)
                 if m:
-                    g.funcs[m.group(1)] = max(g.funcs.get(m.group(1), 0),
-                                               int(m.group(2)))
+                    g.funcs[m.group(1)] = max(
+                        g.funcs.get(m.group(1), 0), int(m.group(2))
+                    )
                     g.raw.append((None, None, line))
                     continue
                 m = BRANCH_RE.match(line)
@@ -79,8 +86,11 @@ class Gcov:
 
 
 def merge_copies(src, dirs):
-    gcovs = [Gcov.parse(os.path.join(d, src + ".gcov"))
-             for d in dirs if os.path.exists(os.path.join(d, src + ".gcov"))]
+    gcovs = [
+        Gcov.parse(os.path.join(d, src + GCOV_SUFFIX))
+        for d in dirs
+        if os.path.exists(os.path.join(d, src + GCOV_SUFFIX))
+    ]
     if not gcovs:
         return None
     # base = the copy that exercised the most lines
@@ -110,7 +120,7 @@ def emit_gcov(merged, out_dir, src):
     out = []
     for cnt_s, lineno, text in base.raw:
         if cnt_s is not None and cnt_s == "-":
-            out.append("%9s:%5d:%s" % ("-", lineno, text))
+            out.append(f"{'-':>9}:{lineno:>5}:{text}")
             continue
         if cnt_s is None:  # header/blank/function/branch/call lines
             m = BRANCH_RE.match(text)
@@ -120,8 +130,7 @@ def emit_gcov(merged, out_dir, src):
                 if idx < len(blst) and blst[idx]:
                     # Merged run covered this branch: mark it taken even if
                     # the base run had "never executed".
-                    text = re.sub(r"taken \d+|never executed", "taken 1",
-                                  text, count=1)
+                    text = re.sub(r"taken \d+|never executed", "taken 1", text, count=1)
                 out.append(text)
                 continue
             if FUNC_RE.match(text) or text.startswith("call"):
@@ -130,21 +139,21 @@ def emit_gcov(merged, out_dir, src):
             if text == "":
                 out.append("")
             else:
-                out.append("%9s:%s" % ("-", text))
+                out.append(f"{'-':>9}:{text}")
             continue
         if lineno is None:
             out.append(text)
             continue
         if lineno == 0:
-            out.append("%9s:   0:%s" % (cnt_s, text))
+            out.append(f"{cnt_s:>9}:   0:{text}")
             continue
         if merged.lines.get(lineno, [False])[0]:
             cnt = merged.lines[lineno][1]
-            out.append("%9d:%5d:%s" % (cnt, lineno, text))
+            out.append(f"{cnt:>9}:{lineno:>5}:{text}")
         else:
-            out.append("%9s:%5d:%s" % ("#####", lineno, text))
+            out.append(f"{'#####':>9}:{lineno:>5}:{text}")
     out.append("")
-    with open(os.path.join(out_dir, src + ".gcov"), "w") as f:
+    with open(os.path.join(out_dir, src + GCOV_SUFFIX), "w") as f:
         f.write("\n".join(out))
 
 
@@ -182,7 +191,9 @@ def main():
         lpct = 100.0 * n_cov / n_exec if n_exec else 0.0
         bpct = 100.0 * b_cov / b_total if b_total else 0.0
         fpct = 100.0 * fn_cov / fn_total if fn_total else 0.0
-        print(f"{src:<32}{n_exec:>8}{n_cov:>8}{lpct:>7.1f}%{b_total:>6}{b_cov:>7}{bpct:>6.1f}%{fn_total:>4}{fn_cov:>7}{fpct:>6.1f}%")
+        print(
+            f"{src:<32}{n_exec:>8}{n_cov:>8}{lpct:>7.1f}%{b_total:>6}{b_cov:>7}{bpct:>6.1f}%{fn_total:>4}{fn_cov:>7}{fpct:>6.1f}%"
+        )
         total_exec += n_exec
         total_covered += n_cov
         total_branch += b_total
@@ -193,7 +204,9 @@ def main():
     l = 100.0 * total_covered / total_exec if total_exec else 0.0
     b = 100.0 * total_branch_cov / total_branch if total_branch else 0.0
     f = 100.0 * total_func_cov / total_func if total_func else 0.0
-    print(f"{'TOTAL':<32}{total_exec:>8}{total_covered:>8}{l:>7.1f}%{total_branch:>6}{total_branch_cov:>7}{b:>6.1f}%{total_func:>4}{total_func_cov:>7}{f:>6.1f}%")
+    print(
+        f"{'TOTAL':<32}{total_exec:>8}{total_covered:>8}{l:>7.1f}%{total_branch:>6}{total_branch_cov:>7}{b:>6.1f}%{total_func:>4}{total_func_cov:>7}{f:>6.1f}%"
+    )
 
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)

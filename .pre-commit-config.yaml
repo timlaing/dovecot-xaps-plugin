@@ -1,0 +1,81 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: forbid-submodules
+      - id: trailing-whitespace
+      - id: detect-private-key
+      - id: check-docstring-first
+      - id: end-of-file-fixer
+      - id: check-shebang-scripts-are-executable
+      - id: check-added-large-files
+      - id: check-yaml
+        args:
+          - --unsafe
+      - id: requirements-txt-fixer
+      - id: name-tests-test
+        args:
+          - --pytest-test-first
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.16.5
+    hooks:
+      # Run the linter.
+      - id: ruff-check
+        args:
+          - --fix
+      # Run the formatter.
+      - id: ruff-format
+  - repo: https://github.com/streetsidesoftware/cspell-cli
+    rev: v10.1.0
+    hooks:
+      - id: cspell
+        args:
+          - --config=.vscode/cspell.json
+          - --no-must-find-files
+          - --no-progress
+          - --no-summary
+      - id: cspell # Spell check the commit message
+        name: check commit message spelling
+        args:
+          - --no-must-find-files
+          - --no-progress
+          - --no-summary
+          - --files
+          - .git/COMMIT_EDITMSG
+        stages: [commit-msg]
+        always_run: true # This might not be necessary.
+  - repo: https://github.com/adrienverge/yamllint.git
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier
+        entry: npx prettier --write --ignore-unknown
+        language: node
+        types_or:
+          - json
+          - yaml
+          - markdown
+        additional_dependencies:
+          - prettier-plugin-sort-json
+          - "@prettier/plugin-xml"
+        pass_filenames: true
+      - id: check-prek-deps
+        name: Check prek dependency sync
+        language: python
+        entry: python3 scripts/sync_prek_deps.py --check
+        additional_dependencies:
+          # BEGIN GENERATED REQUIREMENTS
+          - prek
+          - ruff
+          # END GENERATED REQUIREMENTS
+        args:
+          - requirements.txt
+          - requirements-dev.txt
+        files: ^(requirements.*\.txt|\.pre-commit-config\.yaml)$
+        pass_filenames: false

@@ -44,22 +44,27 @@
 struct xaps_config *xaps_global;
 
 // get the real name for users who are actually an alias
-const char *get_real_mbox_user(struct mail_user *muser) {
+const char *get_real_mbox_user(const struct mail_user *muser) {
     const char *username = muser->username;
-    if (xaps_global->user_lookup != NULL && *xaps_global->user_lookup != '\0') {
-        const char *lookup_key = xaps_global->user_lookup;
-        size_t key_len = strlen(lookup_key);
-        if (muser->userdb_fields != NULL) {
-            for (unsigned int i = 0; muser->userdb_fields[i] != NULL; i++) {
-                const char *field = muser->userdb_fields[i];
-                if (strncmp(field, lookup_key, key_len) == 0 &&
-                    field[key_len] == '=') {
-                    username = field + key_len + 1;
-                    break;
-                }
-            }
+    const char *lookup_key;
+    size_t key_len;
+
+    if (xaps_global->user_lookup == NULL || *xaps_global->user_lookup == '\0')
+        return username;
+
+    lookup_key = xaps_global->user_lookup;
+    key_len = strlen(lookup_key);
+
+    if (muser->userdb_fields == NULL)
+        return username;
+
+    for (unsigned int i = 0; muser->userdb_fields[i] != NULL; i++) {
+        const char *field = muser->userdb_fields[i];
+        if (strncmp(field, lookup_key, key_len) == 0 && field[key_len] == '=') {
+            return field + key_len + 1;
         }
     }
+
     return username;
 }
 
@@ -134,8 +139,7 @@ void xaps_init(struct mail_user *muser, const char *http_path, pool_t pPool ATTR
        value actually changed so an alloc-only config pool doesn't grow on
        every notification/registration, and honor a cleared setting. */
     if (*xaps_set->xaps_user_lookup == '\0') {
-        if (xaps_global->user_lookup != NULL)
-            xaps_global->user_lookup = NULL;
+        xaps_global->user_lookup = NULL;
     } else if (xaps_global->user_lookup == NULL ||
                strcmp(xaps_global->user_lookup, xaps_set->xaps_user_lookup) != 0) {
         xaps_global->user_lookup = p_strdup(xaps_global->pool,
@@ -162,10 +166,8 @@ void xaps_init(struct mail_user *muser, const char *http_path, pool_t pPool ATTR
 }
 
 void push_notification_driver_xaps_deinit(struct push_notification_driver_user *duser ATTR_UNUSED) {
-    if (xaps_global != NULL) {
-        if (xaps_global->http_client != NULL)
-            http_client_wait(xaps_global->http_client);
-    }
+    if (xaps_global != NULL && xaps_global->http_client != NULL)
+        http_client_wait(xaps_global->http_client);
 }
 
 void push_notification_driver_xaps_cleanup(void)
