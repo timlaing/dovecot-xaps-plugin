@@ -150,19 +150,21 @@ void xaps_init(struct mail_user *muser, const char *http_path, pool_t pPool ATTR
     settings_free(xaps_set);
 #endif
 
-    if (xaps_global->http_client == NULL) {
 #ifdef XAPS_HAVE_HTTP_CLIENT_INIT_AUTO
-        if (http_client_init_auto(muser->event, &xaps_global->http_client, &error) < 0) {
-            i_error("xaps: Failed to initialize HTTP client: %s", error);
-            return;
-        }
+    /* Short-circuit && keeps http_client_init_auto() gated on a NULL client. */
+    if (xaps_global->http_client == NULL &&
+        http_client_init_auto(muser->event, &xaps_global->http_client, &error) < 0) {
+        i_error("xaps: Failed to initialize HTTP client: %s", error);
+        return;
+    }
 #else
+    if (xaps_global->http_client == NULL) {
         struct http_client_settings http_set = {
             .event_parent = muser->event,
         };
         xaps_global->http_client = http_client_init(&http_set);
-#endif
     }
+#endif
 }
 
 void push_notification_driver_xaps_deinit(struct push_notification_driver_user *duser ATTR_UNUSED) {
