@@ -5,7 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.1] - 2026-10-14
+
+### Added
+
+- Pre-commit tooling (`prek` with cspell, prettier, ruff, yamllint, and YAML checks) plus the
+  `.vscode` workspace spell-check and settings configuration.
+
+### Changed
+
+- Updated the README to use the renamed Ubuntu APT suites (`resolute` for Dovecot 2.4, `noble` for
+  Dovecot 2.3).
+- Refactored the registration and settings paths for const-correctness and simpler control flow in
+  response to static analysis, with no change to runtime behaviour.
+
+### Fixed
+
+- Resolved the SonarQube findings in the IMAP, push-notification, settings, and utils modules.
+- Hardened CI and package validation: package contents are now captured once before `grep` so a
+  broken pipe cannot fail the build spuriously, the Dovecot 2.3 package check fails explicitly if
+  the 2.4-only `libxaps_settings.so` leaks in, and cross-architecture installs pin `libsystemd0`
+  and `libudev1` to the native version so an in-flight Ubuntu security push cannot break the
+  arm64 jobs.
+
+## [1.1.0] - 2026-09-06
 
 ### Added
 
