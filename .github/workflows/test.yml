@@ -73,6 +73,12 @@ jobs:
             else
               grep -q lib20_xaps_imap_plugin.so package-contents.txt
               grep -q lib20_xaps_push_notification_plugin.so package-contents.txt
-              ! grep -q libxaps_settings.so package-contents.txt
+              # Explicit check rather than `! grep -q`: errexit ignores a command
+              # whose status is inverted with `!`, so the old form passed even
+              # when the 2.4-only library leaked into the 2.3 package.
+              if grep -q libxaps_settings.so package-contents.txt; then
+                echo "Unexpected libxaps_settings.so in Dovecot 2.3 package" >&2
+                exit 1
+              fi
             fi
             '
