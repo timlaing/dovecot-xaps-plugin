@@ -62,14 +62,23 @@ jobs:
             package=$(find dist -maxdepth 1 -name '*.deb' -print -quit)
             test -n "$package"
             lintian --fail-on error "$package"
-            dpkg-deb --contents "$package" | grep -q 95-xaps.conf
+            # Capture once; piping `dpkg-deb --contents` straight into `grep -q`
+            # races an early grep exit against pipefail as a SIGPIPE failure.
+            dpkg-deb --contents "$package" > package-contents.txt
+            grep -q 95-xaps.conf package-contents.txt
             if [ "$DOVECOT_MAJOR" = "2.4" ]; then
-              dpkg-deb --contents "$package" | grep -q lib25_xaps_imap_plugin.so
-              dpkg-deb --contents "$package" | grep -q lib25_xaps_push_notification_plugin.so
-              dpkg-deb --contents "$package" | grep -q libxaps_settings.so
+              grep -q lib25_xaps_imap_plugin.so package-contents.txt
+              grep -q lib25_xaps_push_notification_plugin.so package-contents.txt
+              grep -q libxaps_settings.so package-contents.txt
             else
-              dpkg-deb --contents "$package" | grep -q lib20_xaps_imap_plugin.so
-              dpkg-deb --contents "$package" | grep -q lib20_xaps_push_notification_plugin.so
-              ! dpkg-deb --contents "$package" | grep -q libxaps_settings.so
+              grep -q lib20_xaps_imap_plugin.so package-contents.txt
+              grep -q lib20_xaps_push_notification_plugin.so package-contents.txt
+              # Explicit check rather than `! grep -q`: errexit ignores a command
+              # whose status is inverted with `!`, so the old form passed even
+              # when the 2.4-only library leaked into the 2.3 package.
+              if grep -q libxaps_settings.so package-contents.txt; then
+                echo "Unexpected libxaps_settings.so in Dovecot 2.3 package" >&2
+                exit 1
+              fi
             fi
             '

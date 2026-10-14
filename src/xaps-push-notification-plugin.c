@@ -105,6 +105,10 @@ static bool xaps_plugin_begin_txn(struct push_notification_driver_txn *dtxn) {
  * posted. The daemon can then lookup the user and see if any of the
  * devices want to receive a notification for that mailbox.
  */
+/* The msg parameter must stay non-const to match Dovecot's
+   push_notification_driver_v.process_msg vtable signature; a pointer-to-const
+   parameter is an incompatible function-pointer type and fails the -Werror
+   lint build. The message is never modified here. */
 static void xaps_notify(struct push_notification_driver_txn *dtxn, struct push_notification_txn_msg *msg) {
     struct push_notification_txn_event *const *event;
     struct http_client_request *http_req;

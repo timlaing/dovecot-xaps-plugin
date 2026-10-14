@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     container: ${{ matrix.dovecot-major == '2.4' && 'ubuntu:26.04' || 'ubuntu:24.04' }}
     strategy:
+      fail-fast: false
       matrix:
         arch: [amd64, arm64]
         dovecot-major: [2.4, 2.3]
@@ -22,6 +23,9 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Install build dependencies (inside container)
+        # Container jobs default to sh; the cross-arch pin logic below uses
+        # bash arrays, so request bash explicitly.
+        shell: bash
         run: |
           dpkg --add-architecture ${{ matrix.arch }}
           if [ "${{ matrix.arch }}" = "arm64" ] && [ "${{ matrix.dovecot-major }}" = "2.3" ]; then
@@ -33,6 +37,23 @@ jobs:
           fi
           apt-get update
           apt-get install --yes build-essential cmake lintian
+          if [ "${{ matrix.arch }}" != "$(dpkg --print-architecture)" ]; then
+            # Cross-arch install: during an Ubuntu security push, ports.ubuntu.com
+            # can publish libsystemd0/libudev1 ahead of archive.ubuntu.com. Those
+            # libs are Multi-Arch: same and util-linux/bsdutils predepend on them,
+            # so a mismatched pair is "not installable". Pin the foreign-arch copy
+            # to the native version apt already resolved.
+            foreign=${{ matrix.arch }}
+            native=$(dpkg --print-architecture)
+            pins=()
+            for lib in libsystemd0 libudev1; do
+              v=$(dpkg-query -W -f='${Version}' "$lib:$native" 2>/dev/null || true)
+              [ -n "$v" ] && pins+=("$lib:$foreign=$v")
+            done
+            if [ "${#pins[@]}" -gt 0 ]; then
+              apt-get install --yes "${pins[@]}"
+            fi
+          fi
           apt-get install --yes dovecot-core:${{ matrix.arch }} dovecot-dev:${{ matrix.arch }}
           dovecot_version=$(dpkg-query -W -f='${Version}' dovecot-core)
           dovecot_version=${dovecot_version#*:}
@@ -86,19 +107,30 @@ jobs:
         shell: bash
         run: |
           package=$(find dist -maxdepth 1 -name '*.deb' -print -quit)
-          dpkg-deb --contents "$package" | grep -q lib25_xaps_imap_plugin.so
-          dpkg-deb --contents "$package" | grep -q lib25_xaps_push_notification_plugin.so
-          dpkg-deb --contents "$package" | grep -q libxaps_settings.so
-          dpkg-deb --contents "$package" | grep -q 95-xaps.conf
+          # Capture once; piping `dpkg-deb --contents` straight into `grep -q`
+          # races an early grep exit against pipefail as a SIGPIPE failure.
+          dpkg-deb --contents "$package" > package-contents.txt
+          grep -q lib25_xaps_imap_plugin.so package-contents.txt
+          grep -q lib25_xaps_push_notification_plugin.so package-contents.txt
+          grep -q libxaps_settings.so package-contents.txt
+          grep -q 95-xaps.conf package-contents.txt
 
       - name: Validate package contents (amd64 only)
         if: matrix.arch == 'amd64' && matrix.dovecot-major == '2.3'
         shell: bash
         run: |
           package=$(find dist -maxdepth 1 -name '*.deb' -print -quit)
-          dpkg-deb --contents "$package" | grep -q lib20_xaps_imap_plugin.so
-          dpkg-deb --contents "$package" | grep -q lib20_xaps_push_notification_plugin.so
-          dpkg-deb --contents "$package" | grep -q 95-xaps.conf
-          ! dpkg-deb --contents "$package" | grep -q libxaps_settings.so
+          # See above: avoid `dpkg-deb | grep -q` broken-pipe failures.
+          dpkg-deb --contents "$package" > package-contents.txt
+          grep -q lib20_xaps_imap_plugin.so package-contents.txt
+          grep -q lib20_xaps_push_notification_plugin.so package-contents.txt
+          grep -q 95-xaps.conf package-contents.txt
+          # Explicit check rather than `! grep -q`: errexit ignores a command
+          # whose status is inverted with `!`, so the old form passed even when
+          # the 2.4-only library leaked into the 2.3 package.
+          if grep -q libxaps_settings.so package-contents.txt; then
+            echo "Unexpected libxaps_settings.so in Dovecot 2.3 package" >&2
+            exit 1
+          fi
           dpkg-deb --field "$package" Package | grep -q dovecot-xaps-plugin
           dpkg-deb --field "$package" Version | grep -q '1~dov23$'
