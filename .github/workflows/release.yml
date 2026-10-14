@@ -44,6 +44,23 @@ jobs:
           fi
           apt-get update
           apt-get install --yes build-essential cmake lintian
+          if [ "${{ matrix.arch }}" != "$(dpkg --print-architecture)" ]; then
+            # Cross-arch install: during an Ubuntu security push, ports.ubuntu.com
+            # can publish libsystemd0/libudev1 ahead of archive.ubuntu.com. Those
+            # libs are Multi-Arch: same and util-linux/bsdutils predepend on them,
+            # so a mismatched pair is "not installable". Pin the foreign-arch copy
+            # to the native version apt already resolved.
+            foreign=${{ matrix.arch }}
+            native=$(dpkg --print-architecture)
+            pins=()
+            for lib in libsystemd0 libudev1; do
+              v=$(dpkg-query -W -f='${Version}' "$lib:$native" 2>/dev/null || true)
+              [ -n "$v" ] && pins+=("$lib:$foreign=$v")
+            done
+            if [ "${#pins[@]}" -gt 0 ]; then
+              apt-get install --yes "${pins[@]}"
+            fi
+          fi
           apt-get install --yes dovecot-core:${{ matrix.arch }} dovecot-dev:${{ matrix.arch }}
           dovecot_version=$(dpkg-query -W -f='${Version}' dovecot-core)
           dovecot_version=${dovecot_version#*:}
