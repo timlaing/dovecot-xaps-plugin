@@ -33,6 +33,9 @@ jobs:
           echo "version=$version" >> "$GITHUB_ENV"
 
       - name: Install build dependencies (inside container)
+        # Container jobs default to sh; the cross-arch pin logic below uses
+        # bash arrays, so request bash explicitly.
+        shell: bash
         run: |
           dpkg --add-architecture ${{ matrix.arch }}
           if [ "${{ matrix.arch }}" = "arm64" ] && [ "${{ matrix.dovecot-major }}" = "2.3" ]; then
