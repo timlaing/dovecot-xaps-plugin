@@ -3,9 +3,21 @@ iOS Push Email plugin for Dovecot
 
 [![CI](https://github.com/timlaing/dovecot-xaps-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/timlaing/dovecot-xaps-plugin/actions/workflows/ci.yml)
 [![Lint](https://github.com/timlaing/dovecot-xaps-plugin/actions/workflows/lint.yml/badge.svg)](https://github.com/timlaing/dovecot-xaps-plugin/actions/workflows/lint.yml)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=timlaing_dovecot-xaps-plugin&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=timlaing_dovecot-xaps-plugin)
 [![Release](https://img.shields.io/github/v/release/timlaing/dovecot-xaps-plugin)](https://github.com/timlaing/dovecot-xaps-plugin/releases)
 [![License](https://img.shields.io/github/license/timlaing/dovecot-xaps-plugin)](LICENSE)
+
+[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=timlaing_dovecot-xaps-plugin&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=timlaing_dovecot-xaps-plugin)
+[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=timlaing_dovecot-xaps-plugin&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=timlaing_dovecot-xaps-plugin)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=timlaing_dovecot-xaps-plugin&metric=coverage)](https://sonarcloud.io/summary/new_code?id=timlaing_dovecot-xaps-plugin)
+
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=timlaing_dovecot-xaps-plugin&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=timlaing_dovecot-xaps-plugin)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=timlaing_dovecot-xaps-plugin&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=timlaing_dovecot-xaps-plugin)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=timlaing_dovecot-xaps-plugin&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=timlaing_dovecot-xaps-plugin)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=timlaing_dovecot-xaps-plugin&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=timlaing_dovecot-xaps-plugin)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=timlaing_dovecot-xaps-plugin&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=timlaing_dovecot-xaps-plugin)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=timlaing_dovecot-xaps-plugin&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=timlaing_dovecot-xaps-plugin)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=timlaing_dovecot-xaps-plugin&metric=bugs)](https://sonarcloud.io/summary/new_code?id=timlaing_dovecot-xaps-plugin)
+[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=timlaing_dovecot-xaps-plugin&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=timlaing_dovecot-xaps-plugin)
 
 This project provides Dovecot 2.4.x and Dovecot 2.3.x plugins for the `XAPPLEPUSHSERVICE` IMAP extension and
 mail-event notifications. It works with [dovecot-xaps-daemon](https://github.com/timlaing/dovecot-xaps-daemon) to
