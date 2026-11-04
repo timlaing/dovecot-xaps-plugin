@@ -33,6 +33,7 @@
     "blst",
     "bpct",
     "cfamily",
+    "coderabbitai",
     "cpack",
     "CPACK",
     "ctest",
@@ -66,8 +67,8 @@
     "Wcompare",
     "Werror",
     "xapplepush",
-    "xapplepushservice",
     "XAPPLEPUSHSERVICE",
+    "xapplepushservice",
     "xaps",
     "XAPS",
     "xapsd"
