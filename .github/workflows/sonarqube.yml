@@ -33,7 +33,8 @@ jobs:
       - name: Install scanner build headers
         run: |
           apt-get update
-          apt-get install --yes build-essential cmake gcc python3 unzip dovecot-core dovecot-dev
+          apt-get install --yes build-essential cmake git gcc python3 unzip dovecot-core dovecot-dev
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Resolve current PR metadata
         id: metadata
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
