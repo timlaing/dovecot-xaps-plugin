@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Validate release version
         shell: bash
@@ -109,7 +109,7 @@ jobs:
           lintian --fail-on error "$package"
 
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.1
         with:
           name: dovecot-xaps-plugin-${{ env.version }}-dovecot${{ matrix.dovecot-major }}-${{ matrix.arch }}
           path: dist/*.deb
@@ -122,10 +122,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Download all build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v4
         with:
           path: artifacts
           pattern: dovecot-xaps-plugin-*
@@ -137,10 +137,10 @@ jobs:
           find artifacts -name '*.deb' -exec cp {} dist/ \;
 
       - name: Generate checksums
-        run: cd dist && sha256sum *.deb > SHA256SUMS
+        run: cd dist && sha256sum -- *.deb > SHA256SUMS
 
       - name: Generate SPDX SBOM
-        uses: anchore/sbom-action@v0.24.2
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           path: dist
           format: spdx-json

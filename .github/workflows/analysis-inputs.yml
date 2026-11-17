@@ -1,0 +1,107 @@
+name: Analysis inputs
+"on":
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+permissions:
+  contents: read
+concurrency:
+  group: analysis-inputs-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    container: ubuntu:26.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install --yes build-essential cmake gcc python3 unzip dovecot-core dovecot-dev
+          dpkg --compare-versions "$(dovecot --version | awk '{print $1}')" ge 2.4.2
+      - name: Generate compilation database
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=/usr
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Build with test coverage
+        run:
+          cmake -S tests -B build-cov -DCMAKE_C_FLAGS=--coverage -DCMAKE_EXE_LINKER_FLAGS=--coverage && cmake --build
+          build-cov --parallel
+      - name: Run tests
+        run: ctest --test-dir build-cov --output-on-failure
+      - name: Generate gcov coverage reports
+        run: |
+          mkdir -p gcov
+          for target in test_xaps_utils test_xaps_push_notification test_xaps_imap; do
+            dir="build-cov/CMakeFiles/${target}.dir"
+            ( cd "$dir" && gcov -b -c ./*.gcda >/dev/null )
+            mkdir -p "gcov/${target}"
+            cp "$dir"/*.gcov "gcov/${target}/"
+          done
+          python3 scripts/merge_gcov.py --out coverage \
+            gcov/test_xaps_utils \
+            gcov/test_xaps_push_notification \
+            gcov/test_xaps_imap
+      - name: Record analysis revision
+        run: git rev-parse HEAD > coverage-revision.txt
+      - name: Collect analysis inputs
+        run: |
+          python3 -I - <<'PY'
+          from pathlib import Path
+          import shutil
+          root = Path('.')
+          out = root / '.analysis-inputs'
+          out.mkdir()
+          patterns = ['coverage-revision.txt', 'coverage.xml', 'coverage.out', 'lcov.info', 'coverage/**', 'coverage-js/**', 'gcov/**', 'build/compile_commands.json', 'dist/**']
+          count = 0
+          for pattern in patterns:
+              for source in root.glob(pattern):
+                  if source.is_symlink():
+                      raise SystemExit('Symlink is not an analysis input')
+                  if source.is_file():
+                      target = out / source
+                      target.parent.mkdir(parents=True, exist_ok=True)
+                      shutil.copyfile(source, target)
+                      count += 1
+          if not count:
+              raise SystemExit('No analysis inputs were generated')
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: analysis-inputs
+          path: .analysis-inputs/
+          if-no-files-found: error
+          retention-days: "7"
+          include-hidden-files: true
+    permissions:
+      contents: read
+    name: Generate analysis inputs
+  validation-result:
+    name: Validate analysis-inputs
+    needs:
+      - coverage
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require every validation job to pass
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 -I - <<'PY'
+          import json, os
+          results = json.loads(os.environ['RESULTS'])
+          failed = [name for name, job in results.items() if job['result'] != 'success']
+          if failed:
+              raise SystemExit('Validation incomplete: ' + ', '.join(failed))
+          PY

@@ -1,0 +1,32 @@
+{
+  "default_workflow_permissions": "read",
+  "required_checks": [
+    "Validate action-refs",
+    "Validate checks",
+    "Validate ci",
+    "Validate lint",
+    "Validate test",
+    "Validate analysis-inputs",
+    "Analysis passed",
+    "Workflow policy",
+    "Analyze (c-cpp)",
+    "Analyze (python)",
+    "Analyze (actions)",
+    "Review passed"
+  ],
+  "review_gate_requires_main": true,
+  "sha_pinning_required": true,
+  "validation_checks": [
+    "Validate action-refs",
+    "Validate checks",
+    "Validate ci",
+    "Validate lint",
+    "Validate test",
+    "Validate analysis-inputs",
+    "Analysis passed",
+    "Workflow policy",
+    "Analyze (c-cpp)",
+    "Analyze (python)",
+    "Analyze (actions)"
+  ]
+}
