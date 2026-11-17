@@ -159,6 +159,26 @@ jobs:
                       if not filename.startswith('.github/scripts/'):
                           entry.set('filename', '.github/scripts/' + filename)
                   report.write(target, encoding='utf-8', xml_declaration=True)
+          # C-family probes compiler commands. Never pass a PR-selected executable,
+          # flags, response file or plugin to the privileged scanner.
+          import json
+          workspace = Path.cwd().resolve()
+          commands = []
+          for source in sorted(Path('src').rglob('*.c')):
+              if not re.fullmatch(r'src/[A-Za-z0-9_./-]+\.c', source.as_posix()):
+                  raise SystemExit('Unsupported C source path')
+              arguments = ['/usr/bin/gcc', '-std=gnu99', '-fPIC', '-Wall',
+                           '-I/usr/include/dovecot', '-I' + str(workspace / 'src')]
+              arguments += ['-D' + macro for macro in [
+                  'XAPS_HAVE_SETTINGS_FRAMEWORK', 'XAPS_HAVE_HTTP_CLIENT_INIT_AUTO',
+                  'XAPS_HAVE_PUSH_EVENT_INIT_EVENT', 'XAPS_HAVE_JSON_GENERATOR']]
+              arguments += ['-c', str(workspace / source)]
+              commands.append({'directory': str(workspace),
+                               'file': str(workspace / source), 'arguments': arguments})
+          if not commands:
+              raise SystemExit('No C sources for the trusted Dovecot 2.4 profile')
+          Path('build').mkdir(exist_ok=True)
+          Path('build/compile_commands.json').write_text(json.dumps(commands))
           Path('sonar-project.properties').unlink(missing_ok=True)
           settings = os.environ['SCANNER_SETTINGS']
           settings += 'sonar.working.directory=' + str(Path(os.environ.get('RUNNER_TEMP', str(Path(os.environ['SETTINGS']).parent))) / 'sonar-work') + '\n'
