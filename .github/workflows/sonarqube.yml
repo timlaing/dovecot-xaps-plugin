@@ -94,8 +94,9 @@ jobs:
             sonar.projectKey=timlaing_dovecot-xaps-plugin
             sonar.organization=timlaing
             sonar.projectName=dovecot-xaps-plugin
-            sonar.sources=src
-            sonar.tests=tests
+            sonar.sources=src,.github/scripts
+            sonar.tests=tests,.github/scripts
+            sonar.test.inclusions=**/test_*.py,**/*.test.*,**/tests/**
             sonar.exclusions=dist/**,.git/**
             sonar.sourceEncoding=UTF-8
             sonar.cfamily.compile-commands=build/compile_commands.json
