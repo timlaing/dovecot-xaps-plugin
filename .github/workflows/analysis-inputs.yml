@@ -17,17 +17,17 @@ jobs:
     container: ubuntu:26.04
     timeout-minutes: 30
     steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install --yes build-essential cmake git gcc python3 unzip dovecot-core dovecot-dev
+          dpkg --compare-versions "$(dovecot --version | awk '{print $1}')" ge 2.4.2
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Install build dependencies
-        run: |
-          apt-get update
-          apt-get install --yes build-essential cmake gcc python3 unzip dovecot-core dovecot-dev
-          dpkg --compare-versions "$(dovecot --version | awk '{print $1}')" ge 2.4.2
       - name: Generate compilation database
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=/usr
       - name: Build
