@@ -12,7 +12,8 @@
     "Analyze (c-cpp)",
     "Analyze (python)",
     "Analyze (actions)",
-    "Review passed"
+    "Review passed",
+    "Review notifier policy"
   ],
   "review_gate_requires_main": true,
   "sha_pinning_required": true,
@@ -27,6 +28,7 @@
     "Workflow policy",
     "Analyze (c-cpp)",
     "Analyze (python)",
-    "Analyze (actions)"
+    "Analyze (actions)",
+    "Review notifier policy"
   ]
 }
