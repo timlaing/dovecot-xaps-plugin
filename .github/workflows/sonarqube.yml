@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   analysis:
-    name: SonarQube quality gate
+    name: sonarqube
     if:
       github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event
       == 'pull_request' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch ==
@@ -77,6 +77,13 @@ jobs:
           github-token: ${{ github.token }}
           run-id: ${{ steps.metadata.outputs.source-run-id }}
           repository: ${{ github.repository }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: workflow-tooling-coverage
+          path: ${{ runner.temp }}/analysis-inputs/coverage-workflow
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.metadata.outputs.source-run-id }}
+          repository: ${{ github.repository }}
       - name: Validate scan inputs and install trusted settings
         env:
           INPUTS: ${{ runner.temp }}/analysis-inputs
@@ -93,6 +100,8 @@ jobs:
             sonar.cfamily.compile-commands=build/compile_commands.json
             sonar.cfamily.gcov.reportsPath=coverage
             sonar.qualitygate.wait=true
+            sonar.python.coverage.reportPaths=./coverage-workflow/python.xml
+            sonar.javascript.lcov.reportPaths=./coverage-workflow/javascript.lcov
           HEAD_SHA: ${{ steps.metadata.outputs.head-sha }}
           RUN_EVENT: ${{ steps.metadata.outputs.event }}
           PR_NUMBER: ${{ steps.metadata.outputs.number }}
