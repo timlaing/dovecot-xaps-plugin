@@ -39,7 +39,7 @@ Apply this checklist when reviewing this repository.
 - Tagged release versions must match `vMAJOR.MINOR.PATCH` and the Debian package version.
 - Releases must publish the `.deb`, `SHA256SUMS`, and SPDX JSON SBOM, using the existing Release Drafter release notes.
 - Do not expose `SONAR_TOKEN` or other secrets to untrusted fork pull requests.
-- Reference GitHub Actions by version tag (for example `actions/checkout@v7.0.1`), not by commit SHA, and keep every reference to the same action on one tag. Tag pinning is the project convention, so do not raise full-SHA pinning as a finding.
+- Reference GitHub Actions by full commit SHA, with a version comment where available, and keep all entry points of an action repository on the same commit.
 
 ## Verification
 

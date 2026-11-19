@@ -1,0 +1,4 @@
+# Runner label used by this repository; older actionlint catalogs omit it.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

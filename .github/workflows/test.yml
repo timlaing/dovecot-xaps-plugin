@@ -26,11 +26,11 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up QEMU for arm64
         if: matrix.name == 'arm64'
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
 
       - name: Verify inside Ubuntu container
         env:
@@ -82,3 +82,24 @@ jobs:
               fi
             fi
             '
+
+  validation-result:
+    name: Validate test
+    needs:
+      - test
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require every validation job to pass
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 -I - <<'PY'
+          import json, os
+          results = json.loads(os.environ['RESULTS'])
+          failed = [name for name, job in results.items() if job['result'] != 'success']
+          if failed:
+              raise SystemExit('Validation incomplete: ' + ', '.join(failed))
+          PY
